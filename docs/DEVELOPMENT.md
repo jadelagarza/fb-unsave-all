@@ -67,6 +67,8 @@ El service worker limita la respuesta del script de página a 8 segundos; esto l
 
 Durante una comprobación se omiten consultas periódicas de estado para que no se acumulen detrás de ella. Las pruebas de Chromium activan el botón real del DOM del panel y comprueban el mensaje de error en una vista de 380 × 600, además de comprobar que esa acción no elimina datos de la fixture.
 
+Durante `cooldown`, el panel calcula los segundos restantes desde `run.notBefore` y `Date.now()`, redondeando hacia arriba y sin mostrar valores negativos. El texto se revisa localmente cada 250 ms y sólo se modifica si cambia; no añade mensajes al service worker ni cambia la pausa. Al reabrir el panel se recupera la misma hora límite. Fuera de una ejecución activa en pausa, se muestra el mensaje de estado normal.
+
 ### Guardados: uno por uno
 
 Exige la ruta `/saved/`, origen exacto `https://www.facebook.com` y un título reconocido en español o inglés, incluido «Guardado» en singular. Rechaza rutas de colecciones y parámetros de colección. No confunde una lista sin tarjetas reconocibles con una cuenta vacía.

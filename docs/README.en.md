@@ -2,7 +2,7 @@
 
 [Español](../README.md) · [Development and verification](DEVELOPMENT.md) · [Changelog](../CHANGELOG.md)
 
-**Version 1.0.3** supports one-at-a-time removal on [Facebook Saved](https://www.facebook.com/saved/), with automatic scrolling and a configurable delay. It recognizes card-action labels that append a post title, such as **Agregar a la colección, [title]** and **Más, [title]**, and distinguishes the feed's footer loading sentinel from blocking loading. Multiple main areas and the Spanish heading **Guardado** are supported. Activity Log batches remain available. Page checks show progress and their result or error beside the button.
+**Version 1.0.4** supports one-at-a-time removal on [Facebook Saved](https://www.facebook.com/saved/), with automatic scrolling, a configurable delay and a countdown. It recognizes card-action labels that append a post title, such as **Agregar a la colección, [title]** and **Más, [title]**, and distinguishes the feed's footer loading sentinel from blocking loading. Multiple main areas and the Spanish heading **Guardado** are supported. Activity Log batches remain available. Page checks show progress and their result or error beside the button.
 
 This removes references from your saved list, not the original posts. The extension cannot restore removed saves. Delays do not guarantee protection from Facebook restrictions. Automated tests use simulated pages. In 1.0.3, real controls and their menu were inspected without removing anything; this does not verify the full real deletion cycle. Test with **one item** on your account before running a larger cleanup.
 
@@ -20,7 +20,7 @@ This removes references from your saved list, not the original posts. The extens
 5. Open **FB Unsave All** from Chrome's extensions menu.
 6. Reload an already-open Facebook tab once to activate the content script.
 
-To update, stop any active run, download the current files or run `git pull`, then click **Reload** on the extension in `chrome://extensions`. Verify version **1.0.3**, also shown in the popup header, and reload Facebook once. Keep the extracted directory in place. No Node.js or npm packages are required for end users. This project has no official Chrome Web Store listing.
+To update, stop any active run, download the current files or run `git pull`, then click **Reload** on the extension in `chrome://extensions`. Verify version **1.0.4**, also shown in the popup header, and reload Facebook once. Keep the extracted directory in place. No Node.js or npm packages are required for end users. This project has no official Chrome Web Store listing.
 
 ## Saved: one item at a time
 
@@ -41,6 +41,8 @@ To update, stop any active run, download the current files or run `git pull`, th
 For each card, the extension scrolls its controls into view if needed, opens its three-dot button, and selects the exact **Eliminar / Delete** action (or the adapter's explicitly recognized unsave variant) inside the newly opened menu. It does not select Share or Add to collection, or search the whole page for a Delete button.
 
 It verifies that the card disappeared, with no loading or dialog pending, for one stable second before incrementing the counter. It then waits the configured delay. The actual interval between clicks includes Facebook's response and verification time. If verification fails, it stops without retrying or reloading. Unexpected confirmation dialogs require manual review.
+
+During the pause, the popup counts down **4 s → 3 s → 2 s → 1 s** from the actual pause deadline. Reopening the popup shows the remaining time rather than restarting the countdown. This also applies between Activity Log batches and does not change the configured delay.
 
 When no recognized pending cards remain, it scrolls to load more. Loading is allowed to finish, with a bounded timeout. If three scroll attempts yield no new cards, the run ends with an explanation. **No page reload occurs between items.** The final message distinguishes an explicitly empty view from Facebook failing to deliver more cards. Neither proves that every server-side save has been checked.
 

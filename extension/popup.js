@@ -30,6 +30,17 @@ function showError(error, scroll = false) {
   $("error").textContent = error.message;
   if (scroll) $("error").scrollIntoView({ block: "nearest" });
 }
+function renderMessage() {
+  const run = currentRun;
+  let message = run?.message || "La extensión no actúa hasta que pulses Iniciar.";
+  if (run?.status === "running" && run.phase === "cooldown" && Number.isFinite(run.notBefore) && run.notBefore > 0) {
+    const seconds = Math.max(0, Math.ceil((run.notBefore - Date.now()) / 1000));
+    const next = run.mode === "saved" ? "elemento" : "lote";
+    message = seconds > 0 ? `Esperando ${seconds} s para continuar con el siguiente ${next}…` :
+      "Pausa terminada. Esperando el siguiente paso…";
+  }
+  if ($("message").textContent !== message) $("message").textContent = message;
+}
 function renderControls() {
   const running = currentRun?.status === "running";
   const busy = running || inspecting;
@@ -63,7 +74,7 @@ async function refresh() {
   }
   restored = true;
   $("status").textContent = labels[run?.status] || "Sin ejecución";
-  $("message").textContent = run?.message || "La extensión no actúa hasta que pulses Iniciar.";
+  renderMessage();
   $("completed").textContent = String(run?.batches || 0);
   $("processed").textContent = String(run?.processed || 0);
   renderControls();
@@ -109,3 +120,5 @@ renderMode();
 $("version").textContent = `v${chrome.runtime.getManifest().version}`;
 void action(refresh);
 setInterval(() => { void refresh().catch((error) => { showError(error); }); }, 1000);
+// Render from the existing deadline locally; no extra messages or Facebook actions.
+setInterval(renderMessage, 250);

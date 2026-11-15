@@ -1,5 +1,11 @@
 # Cambios
 
+## 1.0.4 — 15 de noviembre de 2026
+
+- Muestra una cuenta regresiva del tiempo real restante durante las pausas entre elementos y entre lotes.
+- Calcula los segundos desde `notBefore`, sin reiniciar la espera al reabrir el panel ni modificar la pausa configurada.
+- Actualiza el texto localmente, sin añadir consultas a Facebook ni mensajes adicionales al service worker. Al detener o finalizar, muestra el estado correspondiente.
+
 ## 1.0.3 — 15 de noviembre de 2026
 
 - Corrige una incompatibilidad confirmada mediante inspección del DOM real: los nombres accesibles incluyen el título de la publicación, como «Agregar a la colección, [título]», «Compartir, [título]» y «Más, [título]».

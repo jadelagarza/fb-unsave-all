@@ -2,7 +2,7 @@
 
 Extensión local de Google Chrome para quitar los elementos guardados de tu cuenta de Facebook mediante sus controles visibles.
 
-**Versión 1.0.3.** Permite eliminar uno por uno desde [Guardados](https://www.facebook.com/saved/), con espera configurable y desplazamiento automático. Reconoce nombres accesibles como «Agregar a la colección, [título]» y «Más, [título]», y distingue la carga de más tarjetas al pie de la lista de una carga que bloquea los controles. Conserva la limpieza por lotes del Registro de actividad y muestra el resultado o error de la comprobación junto al botón.
+**Versión 1.0.4.** Permite eliminar uno por uno desde [Guardados](https://www.facebook.com/saved/), con espera configurable, cuenta regresiva y desplazamiento automático. Reconoce nombres accesibles como «Agregar a la colección, [título]» y «Más, [título]», y distingue la carga de más tarjetas al pie de la lista de una carga que bloquea los controles. Conserva la limpieza por lotes del Registro de actividad y muestra el resultado o error de la comprobación junto al botón.
 
 [English guide](docs/README.en.md) · [Desarrollo y pruebas](docs/DEVELOPMENT.md) · [Historial de cambios](CHANGELOG.md)
 
@@ -45,7 +45,7 @@ Mantén la carpeta en el mismo lugar mientras esté instalada. Este proyecto no 
 
 1. Detén cualquier ejecución activa.
 2. Descarga la versión actual o ejecuta `git pull` en tu clon.
-3. En `chrome://extensions`, pulsa **Recargar** en FB Unsave All y comprueba la versión **1.0.3**, también visible en la cabecera del panel.
+3. En `chrome://extensions`, pulsa **Recargar** en FB Unsave All y comprueba la versión **1.0.4**, también visible en la cabecera del panel.
 4. Recarga Facebook una vez. Esta recarga es necesaria para reemplazar el script anterior.
 5. Abre de nuevo el panel y selecciona el modo deseado. El modo predeterminado ahora es **Guardados: uno por uno**.
 
@@ -77,6 +77,8 @@ Cada ciclo hace lo siguiente:
 6. Cuando no quedan tarjetas pendientes reconocibles, desplaza el área de la lista para cargar más. Si Facebook muestra carga, espera a que termine; si no aparecen nuevas tarjetas tras tres intentos de desplazamiento, finaliza explicando esa limitación.
 
 El tiempo real entre clics será mayor que la pausa configurada, porque incluye la respuesta de Facebook y su comprobación. No hay recarga entre elementos: se conserva la lista cargada. Si aparece un diálogo de confirmación diferente o una interfaz desconocida, la extensión se detiene para revisión.
+
+Durante la pausa, el panel muestra el tiempo restante: **4 s → 3 s → 2 s → 1 s**. Se calcula con la hora de fin de la pausa; si cierras y reabres el panel, muestra lo que realmente queda. También funciona entre lotes. El contador no modifica la espera ni indica que ya haya comenzado la siguiente eliminación.
 
 ## Registro de actividad: lotes
 
