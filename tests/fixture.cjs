@@ -1,11 +1,21 @@
 module.exports = function fixture(mode = 'normal') {
-  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Saved items fixture</title></head><body>
-  <main><h1>${mode === 'wrong-category' ? 'Tus publicaciones' : 'Tus elementos guardados'}</h1><div id="list"></div><div id="loader" role="progressbar" aria-label="Cargando..." hidden></div></main>
+  const globalOverlay = mode.startsWith('global-overlay');
+  const overlay = '<div id="overlay-root"><div id="loader" role="progressbar" aria-valuetext="Cargando..." tabindex="0"><div></div></div></div>';
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Saved items fixture</title>
+  <style>
+  #overlay-root { position:relative; }
+  #overlay-root #loader { display:none; opacity:0; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1000; }
+  #overlay-root #loader.active { display:flex; opacity:1; }
+  #overlay-root #loader > div { width:32px; height:32px; border:3px solid #1877f2; border-top-color:transparent; border-radius:50%; margin:auto; }
+  </style></head><body>
+  <main><h1>${mode === 'wrong-category' ? 'Tus publicaciones' : 'Tus elementos guardados'}</h1><div id="list"></div>${globalOverlay ? '' : '<div id="loader" role="progressbar" aria-label="Cargando..." hidden></div>'}</main>
+  ${globalOverlay ? overlay : ''}
   <div id="dialog" role="dialog" aria-label="Eliminar elementos guardados" hidden>
     <p>¿Eliminar los elementos guardados seleccionados?</p><button id="cancel">Cancelar</button><button id="confirm">Eliminar</button>
   </div>
   <script>
   const mode = ${JSON.stringify(mode)};
+  const globalOverlay = ${JSON.stringify(globalOverlay)};
   const bareCounter = ['bare-counter', 'ambiguous-counter', 'number-in-post'].includes(mode);
   const batchSize = bareCounter ? 16 : 20;
   let remaining = Number(sessionStorage.getItem('remaining') ?? (bareCounter ? 16 : 40));
@@ -35,12 +45,26 @@ module.exports = function fixture(mode = 'normal') {
     log('confirm-delete');
     document.getElementById('dialog').hidden=true;
     document.querySelector('main').removeAttribute('aria-hidden');
-    if (mode !== 'no-loader') { document.getElementById('loader').hidden=false; log('loading-start'); }
+    if (mode !== 'no-loader') {
+      const loader=document.getElementById('loader');
+      if(globalOverlay) {
+        loader.classList.add('active');
+        if(mode === 'global-overlay-hidden-main') document.querySelector('main').setAttribute('aria-hidden','true');
+      } else loader.hidden=false;
+      log('loading-start');
+    }
     if (mode === 'security') { const alert=document.createElement('div');alert.setAttribute('role','alert');alert.textContent='Confirma tu identidad';document.body.append(alert); }
-    if(mode !== 'stuck-loader') setTimeout(()=>{
+    if(mode !== 'stuck-loader' && mode !== 'global-overlay-stuck') setTimeout(()=>{
       if(mode !== 'no-progress') remaining=Math.max(0,remaining-batchSize);
       sessionStorage.setItem('remaining',remaining);
-      document.getElementById('loader').hidden=true;log('loading-end');render();
+      const loader=document.getElementById('loader');
+      if (mode === 'global-overlay-opacity') loader.style.opacity='0';
+      else if(mode === 'global-overlay-hidden-parent') document.getElementById('overlay-root').style.display='none';
+      else if(mode === 'global-overlay-detached') loader.remove();
+      else if(globalOverlay) loader.classList.remove('active');
+      else loader.hidden=true;
+      document.querySelector('main').removeAttribute('aria-hidden');
+      log('loading-end');render();
     },200);
   };
   </script></body></html>`;

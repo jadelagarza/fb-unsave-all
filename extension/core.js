@@ -19,8 +19,12 @@
 
   function visible(element) {
     if (!element || !element.isConnected || element.closest('[hidden],[aria-hidden="true"]')) return false;
-    const style = getComputedStyle(element);
-    return style.display !== "none" && style.visibility !== "hidden" && element.getClientRects().length > 0;
+    if (element.getClientRects().length === 0) return false;
+    for (let node = element; node; node = node.parentElement) {
+      const style = getComputedStyle(node);
+      if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse" || Number(style.opacity) === 0) return false;
+    }
+    return true;
   }
   function name(element) {
     const labelledBy = element.getAttribute("aria-labelledby");
@@ -58,9 +62,9 @@
     if (headings.some((element) => titles.has(name(element))) && elements(document, 'main,[role="main"]').length === 1) {
       scope = main();
       verifiedContext = { url: url.href, scope };
-    } else if (dialogs().length && verifiedContext?.url === url.href && verifiedContext.scope.isConnected &&
+    } else if ((dialogs().length || globalLoadingIndicators().length) && verifiedContext?.url === url.href && verifiedContext.scope.isConnected &&
       Array.from(document.querySelectorAll(headingSelector)).some((element) => titles.has(name(element)))) {
-      // Accessible modals can mark their background aria-hidden. Reuse only the saved-items
+      // Modals and global loading overlays can mark their background aria-hidden. Reuse only the saved-items
       // scope already verified in this exact document and URL; never authorize a new page here.
       scope = verifiedContext.scope;
     } else {
@@ -72,15 +76,34 @@
     }
     return scope;
   }
-  function isLoading() {
-    const scopes = [...elements(document, 'main,[role="main"]'), ...dialogs()];
-    return scopes.some((scope) => {
-      if (scope.getAttribute("aria-busy") === "true") return true;
-      return elements(scope, '[role="progressbar"],[aria-busy="true"],[aria-label]')
-        .some((element) => element.matches('[role="progressbar"],[aria-busy="true"]') ||
-          /^(?:cargando|loading)(?:\.{3}|…)?$/.test(name(element)));
-    });
+  function loadingSignal(element) {
+    return element.matches('[role="progressbar"],[aria-busy="true"],[data-visualcompletion="loading-state"]') ||
+      /^(?:cargando|loading)(?:\.{3}|…)?$/.test(normalize(element.getAttribute("aria-valuetext") || name(element)));
   }
+  function globalLoadingIndicators() {
+    // Facebook's real deletion loader is a fixed progressbar with aria-valuetext="Cargando..."
+    // outside both main and dialog. It remains in the DOM with display:none after completion.
+    return elements(document, '[role="progressbar"],[role="status"],[aria-busy="true"],[aria-valuetext],[data-visualcompletion="loading-state"]')
+      .filter((element) => {
+        if (!loadingSignal(element)) return false;
+        for (let node = element; node && node !== document.body; node = node.parentElement) {
+          if (getComputedStyle(node).position === "fixed") return true;
+        }
+        return false;
+      });
+  }
+  function loadingIndicators() {
+    const scopes = [...elements(document, 'main,[role="main"]'), ...dialogs()];
+    const indicators = new Set(globalLoadingIndicators());
+    for (const scope of scopes) {
+      if (scope.getAttribute("aria-busy") === "true") indicators.add(scope);
+      for (const element of elements(scope, '[role="progressbar"],[aria-busy="true"],[aria-label],[aria-valuetext],[data-visualcompletion="loading-state"]')) {
+        if (loadingSignal(element)) indicators.add(element);
+      }
+    }
+    return [...indicators];
+  }
+  function isLoading() { return loadingIndicators().length > 0; }
   function selectionBar(scope) {
     const checkbox = allCheckbox(scope);
     if (!checkbox || !checked(checkbox)) return null;

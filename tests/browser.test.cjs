@@ -141,3 +141,40 @@ test('installed extension stops on an actual security-alert element', { timeout:
   assert.match(run.message, /seguridad/);
   assert.equal((await h.events()).filter((event) => event.event === 'page-load').length, 1);
 });
+
+for (const mode of ['global-overlay', 'global-overlay-opacity', 'global-overlay-hidden-parent', 'global-overlay-detached', 'global-overlay-hidden-main']) {
+  test(`installed extension observes ${mode} outside main and reloads only after it becomes invisible`, { timeout: 20000 }, async (t) => {
+    const h = await setup(t, mode);
+    const inspection = await h.request('inspect');
+    assert.equal(inspection.ok, true, inspection.error);
+    assert.equal(inspection.inspection.loading, false, 'a persistent but hidden global progressbar must not block startup');
+    const started = await h.request('start', { acknowledged: true, maxBatches: 1, delaySeconds: 3 });
+    assert.equal(started.ok, true, started.error);
+    const run = await h.untilStatus('finished', 15000);
+    assert.equal(run.batches, 1);
+    assert.equal(run.processed, 20);
+    const events = await h.events();
+    assert.equal(events.filter(event => event.event === 'confirm-delete').length, 1);
+    const secondLoad = events.filter(event => event.event === 'page-load')[1];
+    const loadingEnd = events.find(event => event.event === 'loading-end');
+    assert.ok(secondLoad && loadingEnd);
+    assert.ok(secondLoad.at - loadingEnd.at >= 1400, 'reload must follow the real disappearance, not just DOM presence');
+  });
+}
+
+test('installed extension never reloads while the global deletion overlay remains visible', { timeout: 20000 }, async (t) => {
+  const h = await setup(t, 'global-overlay-stuck');
+  assert.equal((await h.request('start', { acknowledged: true, maxBatches: 1, delaySeconds: 3 })).ok, true);
+  const deadline = Date.now() + 8000;
+  let run;
+  while (Date.now() < deadline) {
+    run = (await h.request('status')).run;
+    if (run?.message.startsWith('Carga detectada.')) break;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  assert.match(run.message, /^Carga detectada\./);
+  await new Promise(resolve => setTimeout(resolve, 1800));
+  assert.equal((await h.events()).filter(event => event.event === 'page-load').length, 1);
+  assert.equal((await h.request('status')).run.status, 'running');
+  await h.request('stop');
+});

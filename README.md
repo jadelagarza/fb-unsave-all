@@ -6,7 +6,7 @@ Vacía los elementos guardados de tu cuenta de Facebook mediante los botones del
 
 ## Estado del proyecto
 
-**Versión 0.1.1. Validación completa en una cuenta real de Facebook pendiente.** Esta versión corrige la lectura del contador numérico sin texto (por ejemplo, `16`) observado en la barra de selección de una cuenta real. Las pruebas automatizadas usan simulaciones; no demuestran que los selectores coincidan con todas las versiones actuales de Facebook ni garantizan vaciar una cuenta concreta.
+**Versión 0.1.2. Validación completa del ciclo corregido en una cuenta real de Facebook pendiente.** Una inspección del DOM real confirmó un indicador global de carga fuera del área principal y de los diálogos. Esta versión lo reconoce y espera a que se oculte, aunque Facebook conserve el nodo en el DOM. Mantiene la corrección del contador numérico de 0.1.1. Las pruebas automatizadas usan simulaciones; no demuestran que los selectores coincidan con todas las versiones actuales de Facebook ni garantizan vaciar una cuenta concreta.
 
 La extensión quita referencias de tu lista de guardados. No elimina las publicaciones originales de otras personas. Revisa primero cualquier elemento que quieras conservar: este proyecto no proporciona una función para restaurar los guardados eliminados.
 
@@ -16,7 +16,7 @@ La extensión quita referencias de tu lista de guardados. No elimina las publica
 2. Comprueba que la página sea el Registro de actividad y que muestre el título **Tus elementos guardados** o **Your saved items**.
 3. Marca la casilla **Todo** y lee la cantidad seleccionada. El tamaño del lote lo decide Facebook; no está fijado a 20 por el script.
 4. Pulsa **Eliminar** en la barra y después **Eliminar** dentro del diálogo con **Cancelar**.
-5. Espera a observar un indicador de carga y luego su desaparición estable durante 1.5 segundos. También comprueba que el diálogo haya desaparecido.
+5. Espera a observar un indicador de carga y luego su desaparición visual estable durante 1.5 segundos. Reconoce también la capa global que Facebook coloca fuera del área principal. Un indicador con `display: none`, `visibility: hidden`, opacidad cero, un antecesor oculto o eliminado del DOM ya no se considera visible. También comprueba que el diálogo haya desaparecido.
 6. Ejecuta una **recarga normal de la pestaña con `chrome.tabs.reload`**, equivalente a usar el botón de recarga de Chrome. La recarga ocurre después de terminar la carga, incluso en el último lote autorizado.
 7. Tras la recarga, comprueba la lista, aplica la pausa configurada y empieza el siguiente lote.
 
@@ -97,6 +97,7 @@ El estado vive en `chrome.storage.session`: sobrevive a las recargas de Facebook
 | No encuentra «Todo», el contador o un botón | Detén la ejecución. La interfaz puede haber cambiado o estar en un idioma no compatible. No elimines las comprobaciones para forzarla. |
 | «No se pudo comprobar la cantidad…» y la barra sólo muestra un número, como `16` | Actualiza a 0.1.1 o posterior. Recarga la extensión en `chrome://extensions` y después recarga Facebook para quitar la selección pendiente. Prueba con un lote. |
 | No se observó el indicador de carga | Puede que Facebook use un indicador distinto o que el ciclo no haya sido observable. Revisa los guardados manualmente; no se recargará ni repetirá el lote. |
+| Sí hubo eliminación y un círculo de carga global, pero la versión anterior decía que no lo observó | Actualiza a 0.1.2 o posterior. Esta versión reconoce el indicador global confirmado en el DOM real. Recarga la extensión y después Facebook antes de probar con un lote. |
 | La lista sigue igual | Revisa si la eliminación funcionó. También puede ser una limitación de la huella si dos lotes tienen el mismo texto. |
 | No se declara lista vacía | Si Facebook usa otro mensaje de vacío, el script se detiene por falta de controles reconocibles. Comprueba el estado manualmente. |
 | Facebook pide contraseña, CAPTCHA o verificar identidad | Detén la ejecución y resuelve la comprobación manualmente. La extensión no la supera ni intenta eludirla. |

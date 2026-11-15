@@ -4,7 +4,7 @@
 
 FB Unsave All is a local Chrome extension that clears your Facebook saved items using the batch controls in Activity Log. It reloads the tab **only after a loading indicator has appeared and then disappeared for 1.5 seconds** and the confirmation dialog has closed. It resumes after that reload.
 
-**Version 0.1.1 is pending full verification on a real Facebook account.** It fixes a bare numeric selection counter (for example, `16`) observed on a real account. Automated tests use simulated pages. They do not establish compatibility with every Facebook rollout or guarantee successful deletion on a particular account.
+**Version 0.1.2 is pending full verification of the corrected cycle on a real Facebook account.** Read-only inspection of the real DOM confirmed a global deletion progressbar outside both the main area and dialogs. This version recognizes it and waits until it becomes invisible, even if Facebook keeps the node in the DOM. It retains the bare numeric counter fix from 0.1.1. Automated tests use simulated pages. They do not establish compatibility with every Facebook rollout or guarantee successful deletion on a particular account.
 
 ## Install
 
@@ -42,6 +42,7 @@ The batch limit accepts 1–500; the pause accepts 3–3,600 seconds. These are 
 
 - Click **Detener ejecución** to stop subsequent actions, or close the authorized Facebook tab. A deletion already confirmed cannot be cancelled or undone by this tool.
 - If a loader is not observed within 15 seconds, or does not finish within 90 seconds after detection, the extension stops without a blind reload or retry.
+- A global fixed-position loading overlay is monitored as well. Its presence in the DOM alone does not mean it is still loading: CSS-hidden, fully transparent, detached, or ancestor-hidden indicators are considered invisible. The popup distinguishes waiting for an indicator from an indicator that has already been detected.
 - Unrecognized or ambiguous controls, a recognized error or security challenge, a pre-existing selection, or an unchanged list after reload stops the run.
 - Missing controls alone do not count as an empty list. Only a recognized explicit empty-list message finishes it as empty.
 - An unexpected manual reload during a pending batch blocks automatic resumption. Inspect the outcome before starting again.

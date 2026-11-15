@@ -52,7 +52,7 @@
     }
     const observer = new MutationObserver(sample);
     observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true,
-      attributeFilter: ["style", "class", "hidden", "aria-hidden", "aria-busy", "aria-label", "role"] });
+      attributeFilter: ["style", "class", "hidden", "aria-hidden", "aria-busy", "aria-label", "aria-valuetext", "data-visualcompletion", "role"] });
     sample();
     return { sample, get observed() { return observed; },
       settled: () => observed && idleSince > 0 && Date.now() - idleSince >= 1500,
@@ -104,9 +104,10 @@
       try {
         await check(run);
         dom.confirmationDelete().click();
-        await phase(run, "waiting", "Esperando que el indicador de carga aparezca y termine…");
+        await phase(run, "waiting", "Esperando a que aparezca el indicador de carga…");
         await waitFor(() => { tracker.sample(); return tracker.observed; }, 15000,
           "No se observó el indicador de carga después de confirmar. No se recargará ni se repetirá el lote");
+        await phase(run, "waiting", "Carga detectada. Esperando a que el indicador se oculte…");
         await waitFor(() => {
           tracker.sample();
           return tracker.settled() && !dom.isLoading() && dom.dialogs().length === 0;
