@@ -105,16 +105,16 @@
     const scope = verifiedContext?.url === location.href && verifiedContext.scope.isConnected ? verifiedContext.scope : null;
     const checkbox = scope && Array.from(scope.querySelectorAll('input[type="checkbox"],[role="checkbox"]'))
       .find((element) => allNames.has(name(element)) && visuallyVisible(element));
-    if (!checkbox) return { ready: false, blocked: false, blocker: null };
+    if (!checkbox) return { ready: false, blocked: false, intercepted: false, blocker: null };
     const rect = checkbox.getBoundingClientRect();
     const x = rect.left + rect.width / 2;
     const y = rect.top + rect.height / 2;
-    if (x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) return { ready: false, blocked: false, blocker: null };
+    if (x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) return { ready: false, blocked: false, intercepted: false, blocker: null };
     const hit = document.elementFromPoint(x, y);
     const label = checkbox.closest("label");
     const intercepted = Boolean(hit && visuallyVisible(hit) && hit !== checkbox && !checkbox.contains(hit) && !(label && label.contains(hit)));
     const disabled = checkbox.disabled || checkbox.getAttribute("aria-disabled") === "true" || Boolean(checkbox.closest("[inert]"));
-    return { ready: Boolean(hit) && !intercepted && !disabled, blocked: intercepted || disabled, blocker: intercepted ? hit : null };
+    return { ready: Boolean(hit) && !intercepted && !disabled, blocked: intercepted || disabled, intercepted, blocker: intercepted ? hit : null };
   }
   function blockingVisualIndicators() {
     const interaction = interactionState();

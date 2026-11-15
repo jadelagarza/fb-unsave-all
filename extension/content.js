@@ -76,13 +76,13 @@
         announcedLoading = true;
         await phase(run, "waiting", "Carga detectada. Esperando a que la página vuelva a estar disponible…");
       }
-      if (dom.isLoading() || dom.dialogs().length) {
+      if (dom.isLoading() || dom.dialogs().length || dom.interactionState().intercepted) {
         evidenceKey = null;
         evidenceSince = 0;
       } else {
         const state = dom.deletionState(snapshot);
         const kind = tracker.observed ? (state.selectionCleared && (state.interactionReady || state.empty) ? "loading" : null) :
-          state.empty ? "empty" : state.itemsRemoved ? "items-removed" :
+          state.empty ? "empty" : state.itemsRemoved && state.interactionReady ? "items-removed" :
             state.selectionCleared && state.interactionReady ? "readiness" : null;
         const key = kind && `${kind}:${state.fingerprint}`;
         if (!kind || key !== evidenceKey) { evidenceKey = key; evidenceSince = kind ? Date.now() : 0; }

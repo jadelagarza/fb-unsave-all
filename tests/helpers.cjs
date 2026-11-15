@@ -88,7 +88,7 @@ async function contentHarness(options = {}) {
     dialogs: () => state.dialog ? [{}] : [],
     confirmationOpen: () => state.dialog,
     isLoading: () => state.loading,
-    interactionState: () => ({ready:!state.loading && !state.dialog,blocked:state.loading || state.dialog}),
+    interactionState: () => ({ready:!state.loading && !state.dialog,blocked:state.loading || state.dialog,intercepted:state.loading || state.dialog}),
     captureDeletion: () => ({ keys: ['fixture-item'], allCaptured: true }),
     deletionState: () => ({ selectionCleared: !state.checked && state.selected === 0,
       empty: state.empty, itemsRemoved: Boolean(state.verifiedRemoval), interactionReady:!state.loading && !state.dialog, fingerprint: state.fingerprint }),

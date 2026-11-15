@@ -52,6 +52,15 @@ async function setup(t, mode = 'normal', fixtureOptions = {}) {
 }
 
 describe('isolated Chrome extension fixtures', { concurrency: 3 }, () => {
+test('an unrecognized blocking layer prevents an optimistic empty view from authorizing early reload', { timeout: 18000 }, async (t) => {
+  const h=await setup(t,'visual-overlay-no-graphic',{initialRemaining:20,emptyUntilReload:true,earlySelectionReset:true,loadingDuration:2200});
+  assert.equal((await h.request('start',{acknowledged:true,maxBatches:1,delaySeconds:3})).ok,true);
+  const run=await h.untilStatus('finished',14000);
+  assert.equal(run.batches,1);
+  const events=await h.events();
+  const nextLoad=events.filter(event=>event.event==='page-load')[1];
+  assert.ok(nextLoad.at>=events.find(event=>event.event==='loading-end').at+1400);
+});
 test('installed extension processes two real DOM batches and reloads only after loading ends', { timeout: 45000 }, async (t) => {
   const h = await setup(t);
   const inspection = await h.request('inspect');

@@ -1,7 +1,7 @@
 module.exports = function fixture(mode = 'normal', options = {}) {
   const visualOverlay = mode.startsWith('visual-overlay');
   const globalOverlay = mode.startsWith('global-overlay') || visualOverlay;
-  const overlay = visualOverlay ? '<div id="overlay-root"><div id="loader" aria-hidden="true"><svg aria-hidden="true" width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="none" stroke="#1877f2" stroke-width="3" stroke-dasharray="70 40"/></svg></div></div>' : '<div id="overlay-root"><div id="loader" role="progressbar" aria-valuetext="Cargando..." tabindex="0"><div></div></div></div>';
+  const overlay = mode === 'visual-overlay-no-graphic' ? '<div id="overlay-root"><div id="loader" aria-hidden="true"><span></span></div></div>' : visualOverlay ? '<div id="overlay-root"><div id="loader" aria-hidden="true"><svg aria-hidden="true" width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="none" stroke="#1877f2" stroke-width="3" stroke-dasharray="70 40"/></svg></div></div>' : '<div id="overlay-root"><div id="loader" role="progressbar" aria-valuetext="Cargando..." tabindex="0"><div></div></div></div>';
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Saved items fixture</title>
   <style>
   #overlay-root { position:relative; }
