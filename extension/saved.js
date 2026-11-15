@@ -6,7 +6,16 @@
   let scrollArea = null;
   const controls = 'button,[role="button"]';
   const collectionNames = new Set(["agregar a coleccion", "agregar a la coleccion", "anadir a coleccion", "anadir a la coleccion", "add to collection"]);
-  const moreNames = new Set(["mas", "mas opciones", "opciones", "more", "more options", "options", "menu"]);
+  const moreNames = new Set([
+    "mas",
+    "mas opciones",
+    "mas opciones para el elemento guardado",
+    "opciones",
+    "more",
+    "more options",
+    "options",
+    "menu"
+  ]);
   const shareNames = new Set(["compartir", "share"]);
   const actionNames = new Set([...collectionNames, ...moreNames, ...shareNames]);
   const deleteNames = new Set(["eliminar", "delete", "quitar de guardados", "eliminar de guardados", "unsave", "remove from saved"]);
@@ -100,7 +109,10 @@
       const list = buttons(group);
       if (list.filter((el) => collectionNames.has(actionName(el))).length !== 1) break;
       const more = list.filter((el) => el !== add && (moreNames.has(actionName(el)) || el.getAttribute("aria-haspopup") === "menu") && !shareNames.has(actionName(el)));
-      if (more.length === 1) return { group, more: more[0] };
+      // A recognized More action works with or without Facebook's Share button.
+      if (more.length === 1) {
+        return { group, more: more[0] };
+      }
       // The observed layout is Add to collection, Share, More. Only open the third
       // button in that exact three-button group; deletion still requires a scoped menu.
       if (list.length === 3 && list[0] === add && !shareNames.has(actionName(list[2])) &&

@@ -50,6 +50,51 @@ async function setup(t, fixtureOptions = {}, url = 'https://www.facebook.com/sav
 }
 
 describe('Saved page extension fixtures', { concurrency: 3 }, () => {
+  test('mixed cards with two or three buttons recognize the saved-item More label and process every card', { timeout: 20000 }, async (t) => {
+    const h = await setup(t, {
+      realControls: true,
+      nestedMain: true,
+      singularHeading: true,
+      footerLoading: true,
+      twoButtonIds: [2, 3],
+      savedItemMenuIds: [2]
+    });
+    assert.equal(await h.page.locator('[data-share]').count(), 1);
+    assert.equal(
+      await h.page.locator('[data-more="2"]').getAttribute('aria-label'),
+      'Más opciones para el elemento guardado'
+    );
+
+    const result = await h.request('inspect');
+    assert.equal(result.ok, true, result.error);
+    assert.equal(result.inspection.loaded, 3);
+    assert.equal(result.inspection.ready, true);
+    assert.equal((await h.start({ maxItems: 3 })).ok, true);
+    assert.equal((await h.untilStatus('finished', 15000)).processed, 3);
+
+    const events = await h.events();
+    assert.deepEqual(
+      events.filter((event) => event.type === 'delete').map((event) => event.id),
+      [1, 2, 3]
+    );
+    assert.equal(events.filter((event) => event.type === 'wrong-action').length, 0);
+  });
+
+  test('a two-button card with an unknown dialog action is refused before opening any menu', { timeout: 10000 }, async (t) => {
+    const h = await setup(t, {
+      realControls: true,
+      twoButtonIds: [2],
+      unknownMenuIds: [2]
+    });
+    const result = await h.start();
+    assert.equal(result.ok, false);
+    assert.match(result.error, /No se pudo aislar el menú de tres puntos/);
+    assert.equal(
+      (await h.events()).filter((event) => ['open', 'delete', 'wrong-action'].includes(event.type)).length,
+      0
+    );
+  });
+
   test('observed Facebook labels with post context and dialog popup attributes recognize the actual three actions', { timeout: 15000 }, async (t) => {
     const h = await setup(t, { realControls: true, nestedMain: true, singularHeading: true, footerLoading: true });
     const result = await h.request('inspect');

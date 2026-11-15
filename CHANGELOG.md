@@ -1,5 +1,12 @@
 # Cambios
 
+## 1.0.5 — 15 de noviembre de 2026
+
+- Reconoce la etiqueta observada «Más opciones para el elemento guardado», también cuando la tarjeta sólo muestra Agregar a colección y los tres puntos.
+- Admite listas que mezclan tarjetas de dos y tres controles sin exigir Compartir para identificar una acción Más reconocida.
+- Conserva la detención ante acciones desconocidas: no interpreta cualquier segundo botón o `aria-haspopup="dialog"` como menú de eliminación.
+- Añade pruebas de Chromium para una lista mixta y para rechazar una tarjeta de dos controles con una acción desconocida. Actualiza las guías en español e inglés.
+
 ## 1.0.4 — 15 de noviembre de 2026
 
 - Muestra una cuenta regresiva del tiempo real restante durante las pausas entre elementos y entre lotes.

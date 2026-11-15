@@ -46,12 +46,22 @@ module.exports = function fixture(options = {}) {
       const title='Demo '+id+', compartir y share';
       const open=options.realControls?'<div role="button" tabindex="0"':'<button';
       const close=options.realControls?'</div>':'</button>';
-      const addLabel=options.realControls?' aria-label="Agregar a la colección, '+title+'"':'';
+      const savedItemMenu = (options.savedItemMenuIds || []).includes(id);
+      const unknownMenu = (options.unknownMenuIds || []).includes(id);
+      const hasShare = !(options.twoButtonIds || []).includes(id);
+      const addLabel = savedItemMenu
+        ? ' aria-label="Agregar a colección"'
+        : options.realControls ? ' aria-label="Agregar a la colección, ' + title + '"' : '';
       const shareLabel=options.realControls?'Compartir, '+title:'Compartir';
-      const moreLabel=options.realControls?'Más, '+title:'Más opciones';
+      const moreLabel = unknownMenu ? 'Acción desconocida'
+        : savedItemMenu ? 'Más opciones para el elemento guardado'
+        : options.realControls ? 'Más, ' + title : 'Más opciones';
       const popup=options.realControls?'dialog':'menu';
+      const shareButton = hasShare
+        ? open + ' data-share="' + id + '" aria-label="' + shareLabel + '">↗' + close
+        : '';
       const actions='<div class="actions">'+open+' data-add="'+id+'"'+addLabel+'>Agregar a colección'+close+
-        open+' data-share="'+id+'" aria-label="'+shareLabel+'">↗'+close+
+        shareButton+
         open+' data-more="'+id+'" '+(options.unlabelled?'':'aria-label="'+moreLabel+'" aria-haspopup="'+popup+'"')+'><svg aria-hidden="true"><circle cx="3" cy="10" r="2"/><circle cx="10" cy="10" r="2"/><circle cx="17" cy="10" r="2"/></svg>'+close+'</div>';
       const nested=options.realControls?'<div><div><div><div>'+actions+'</div></div></div></div>':actions;
       return '<article><a href="/posts/saved-'+id+'">Saved item '+id+'</a>'+nested+'</article>';
