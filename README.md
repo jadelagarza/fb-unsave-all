@@ -1,127 +1,130 @@
 # FB Unsave All
 
-Vacía los elementos guardados de tu cuenta de Facebook mediante los botones del **Registro de actividad**. El script se distribuye como una extensión local de Google Chrome para que pueda continuar después de cada recarga.
+Extensión local de Google Chrome para quitar los elementos guardados de tu cuenta de Facebook mediante sus controles visibles.
 
-[English instructions](docs/README.en.md) · [Detalles de funcionamiento y pruebas](docs/DEVELOPMENT.md)
+**Versión 1.0.0.** Añade la eliminación uno por uno desde [Guardados](https://www.facebook.com/saved/), con espera configurable y desplazamiento automático. Conserva la limpieza por lotes del Registro de actividad.
 
-## Estado del proyecto
+[English guide](docs/README.en.md) · [Desarrollo y pruebas](docs/DEVELOPMENT.md) · [Historial de cambios](CHANGELOG.md)
 
-**Versión 0.1.4. Validación completa del ciclo corregido en una cuenta real de Facebook pendiente.** Distingue la barra superior de navegación del círculo que bloquea la página, admite círculos decorativos sin etiquetas de carga y verifica el resultado al recargar aunque Facebook conserve las filas antiguas hasta ese momento. Los contadores sólo avanzan después de comprobar la página recargada. Las pruebas automatizadas usan simulaciones; no demuestran que los selectores coincidan con todas las versiones actuales de Facebook ni garantizan vaciar una cuenta concreta.
+## Elegir un modo
 
-La extensión quita referencias de tu lista de guardados. No elimina las publicaciones originales de otras personas. Revisa primero cualquier elemento que quieras conservar: este proyecto no proporciona una función para restaurar los guardados eliminados.
+| Modo del panel | Funcionamiento | Uso |
+| --- | --- | --- |
+| **Guardados: uno por uno** (predeterminado) | Abre los tres puntos de una tarjeta, pulsa Eliminar, verifica que desaparezca y espera antes de continuar. Hace scroll para acceder a los botones y cargar más tarjetas. No recarga entre elementos. | Limpiar desde `/saved/`, incluso cuando el Registro de actividad omite guardados antiguos. |
+| **Registro de actividad: lotes** | Marca Todo, lee el contador, pulsa Eliminar y confirma. Espera a que la página vuelva a estar disponible, recarga y comprueba el resultado antes de continuar. | Usar los controles de selección por lotes de Facebook. |
 
-## Qué hace
+La extensión quita referencias de tus guardados; no elimina las publicaciones originales. No ofrece una función para restaurar guardados eliminados. Las pausas **no garantizan evitar restricciones o verificaciones de Facebook**.
 
-1. El botón **Abrir mis elementos guardados** abre el enlace del Registro de actividad en tu pestaña de Facebook. Si Facebook cambia ese enlace, puedes navegar manualmente por **Configuración y privacidad → Registro de actividad → Tu actividad en Facebook → Elementos guardados y colecciones → Tus elementos guardados**.
-2. Comprueba que la página sea el Registro de actividad y que muestre el título **Tus elementos guardados** o **Your saved items**.
-3. Marca la casilla **Todo** y lee la cantidad seleccionada. El tamaño del lote lo decide Facebook; no está fijado a 20 por el script.
-4. Pulsa **Eliminar** en la barra y después **Eliminar** dentro del diálogo con **Cancelar**.
-5. Espera a que desaparezca la carga, se cierre el diálogo y se restablezca la selección. También reconoce una capa visual que bloquea Todo y contiene un anillo SVG o una animación de carga, aunque su gráfico sea decorativo (`aria-hidden`). Si no puede observar el indicador, admite una recarga de verificación cuando desaparecieron los elementos capturados, hay un vacío explícito o la selección se restableció y Todo volvió a estar disponible sin una capa interceptando el control. Exige 1.5 segundos de estado estable; esto autoriza comprobar el resultado al recargar, no dar la eliminación por confirmada.
-6. Ejecuta una **recarga normal de la pestaña con `chrome.tabs.reload`**, equivalente a usar el botón de recarga de Chrome. La recarga ocurre después de comprobar el fin de la eliminación, incluso en el último lote autorizado.
-7. Tras la recarga, comprueba la lista. Sólo entonces contabiliza el lote, aplica la pausa configurada y empieza el siguiente. Si reaparece la misma lista, se detiene sin contabilizar ni volver a eliminar ese lote.
-
-Si la página sigue bloqueada, hay un diálogo pendiente o no se restablece la selección, **no vuelve a pulsar Eliminar**. La ausencia del círculo por sí sola nunca se considera un éxito. Una recarga de verificación puede comprobar la eliminación aunque las filas antiguas sigan visibles; si la página recargada no confirma progreso, se detiene antes de otro intento.
-
-**Una vista vacía antes de recargar puede significar que se vació sólo el lote cargado.** La extensión recarga, comprueba si aparecen más elementos y continúa si queda margen en el máximo de lotes. Sólo finaliza por lista vacía cuando la página recargada confirma ese estado.
+Las pruebas automatizadas utilizan páginas simuladas con la extensión instalada en Chromium. La compatibilidad del nuevo modo con el DOM de tu cuenta real debe comprobarse primero con **1 elemento**. Facebook puede cambiar la interfaz o dejar de entregar tarjetas: una ejecución terminada no demuestra por sí sola que toda la cuenta esté vacía.
 
 ## Requisitos
 
 - Google Chrome de escritorio 120 o posterior, en macOS, Windows o Linux.
-- Una sesión de Facebook iniciada por ti en `https://www.facebook.com`.
-- Facebook en español o inglés, con los controles indicados arriba.
-- Acceso al Registro de actividad de tu propio perfil. Las páginas y otros perfiles no se han validado.
+- Una sesión iniciada por ti en `https://www.facebook.com`.
+- Facebook en español o inglés, con los controles descritos en este documento.
 
 No necesitas Node.js, instalar paquetes, exportar cookies ni pegar código en la consola para usar la extensión. Chrome para iPhone y Android no permite cargar esta extensión de escritorio.
 
-## Instalación paso a paso
+## Instalación
 
-1. Descarga el repositorio: en GitHub pulsa **Code → Download ZIP** y descomprímelo. También puedes clonarlo:
+1. Descarga el repositorio con **Code → Download ZIP** y descomprímelo. También puedes clonarlo:
 
    ```bash
    git clone https://github.com/jadelagarza/fb-unsave-all.git
    ```
 
-2. Abre `chrome://extensions` en Google Chrome.
-3. Activa **Modo de desarrollador**, en la esquina superior derecha.
-4. Pulsa **Cargar descomprimida**.
-5. Selecciona la carpeta **`extension` dentro del repositorio**, la que contiene `manifest.json`. No selecciones la carpeta raíz del proyecto.
-6. Busca **FB Unsave All** en el menú de extensiones de Chrome y fíjala si quieres tenerla a mano.
-7. Si Facebook ya estaba abierto antes de instalarla, recarga esa pestaña **una vez** para activar el script.
+2. Abre `chrome://extensions` y activa **Modo de desarrollador**.
+3. Pulsa **Cargar descomprimida**.
+4. Selecciona la carpeta **`extension`**, que contiene `manifest.json`. No selecciones la raíz del repositorio.
+5. Abre **FB Unsave All** en el menú de extensiones de Chrome; puedes fijarla para tenerla a mano.
+6. Si Facebook ya estaba abierto, recarga esa pestaña una vez para activar el script.
 
-Mantén la carpeta `extension` en el mismo lugar mientras esté instalada. No hay una publicación oficial de este proyecto en Chrome Web Store.
+Mantén la carpeta en el mismo lugar mientras esté instalada. Este proyecto no tiene una publicación oficial en Chrome Web Store.
 
-## Primera ejecución: un lote
+### Actualizar desde una versión anterior
 
-1. Abre Facebook e inicia sesión tú mismo. La extensión no gestiona tu contraseña ni la autenticación de dos pasos.
-2. Abre el panel de **FB Unsave All** y pulsa **1. Abrir mis elementos guardados**. Este botón puede reemplazar la página de tu pestaña actual de Facebook; no borra elementos por sí solo.
-3. Espera a que se muestre **Tus elementos guardados**. Si falla el enlace directo, sigue la ruta manual anterior. Quita los filtros de fecha u otros filtros para trabajar con todo el historial y deja la casilla Todo desmarcada.
-4. Vuelve al panel y pulsa **2. Comprobar esta página**. Debe indicar que la reconoce. Esta comprobación no selecciona ni elimina nada.
-5. Deja **Máximo de lotes = 1** y **Pausa entre lotes = 10 segundos** para la primera prueba.
-6. Lee y marca la confirmación del panel. Pulsa **3. Iniciar limpieza**. Ese botón autoriza las confirmaciones de eliminación del número de lotes configurado.
-7. Mantén Chrome abierto y la pestaña de Facebook visible. No cambies de perfil ni uses manualmente esa pestaña durante el ciclo. Cerrar el panel de la extensión no detiene la ejecución.
-8. Observa la selección, la confirmación, la carga y la recarga. El panel debe finalizar por alcanzar el límite de un lote.
-9. Comprueba en la pantalla **Guardados** que los elementos del lote dejaron de estar guardados. Las pruebas del proyecto no sustituyen esta comprobación en tu cuenta.
+1. Detén cualquier ejecución activa.
+2. Descarga la versión actual o ejecuta `git pull` en tu clon.
+3. En `chrome://extensions`, pulsa **Recargar** en FB Unsave All y comprueba la versión **1.0.0**.
+4. Recarga Facebook una vez. Esta recarga es necesaria para reemplazar el script anterior.
+5. Abre de nuevo el panel y selecciona el modo deseado. El modo predeterminado ahora es **Guardados: uno por uno**.
 
-## Vaciar el resto
+## Guardados: uno por uno, con scroll automático
 
-Después de comprobar que un lote funciona, vuelve a **Tus elementos guardados**, sin selección previa. Abre el panel, configura el máximo de lotes que quieres autorizar y comienza una nueva ejecución.
+1. Inicia sesión en Facebook por tu cuenta.
+2. Selecciona **Guardados: uno por uno** en el panel.
+3. Pulsa **1. Abrir mis elementos guardados**, o entra en [facebook.com/saved/](https://www.facebook.com/saved/). Abre la vista general de todos los guardados, fuera de una colección. Para recorrer la lista desde el principio, empieza arriba.
+4. Espera a que aparezcan tarjetas. Puedes haber deslizado para cargar varias; también se cargarán más conforme haga falta. Deja cerrados los menús y diálogos de Facebook.
+5. Pulsa **2. Comprobar esta página**. El panel indicará cuántas tarjetas reconoce; esta cantidad **no es el total de guardados de la cuenta**.
+6. Para la primera prueba, configura **Máximo de elementos: 1** y **Espera entre elementos: 4**.
+7. Marca la casilla de aceptación y pulsa **3. Iniciar limpieza**. La casilla es obligatoria en ambos modos; no necesitas volver a marcarla para cada elemento de esa ejecución.
+8. Comprueba que se quitó el elemento esperado. Después puedes iniciar otra ejecución con un límite mayor o con **0** para continuar mientras se encuentren tarjetas.
 
-Si Facebook selecciona unos 20 elementos por lote, 1,500 elementos requieren aproximadamente 75 lotes. Un límite de **100 lotes** deja margen y la ejecución termina antes si Facebook muestra explícitamente una lista vacía. **100 es un límite de trabajo, no un límite de seguridad publicado por Meta.** Los contadores se reinician con cada ejecución nueva.
+### Parámetros
 
-| Control | Valor inicial | Significado |
-| --- | --- | --- |
-| Máximo de lotes | 1 | Entre 1 y 500. Limita cuántas eliminaciones por lote autorizas. |
-| Pausa entre lotes | 10 segundos | Entre 3 y 3,600 segundos. Se cuenta desde el final del lote anterior; la recarga sucede primero. No representa un ritmo garantizado como seguro. |
-| Detener ejecución | Disponible al ejecutar | Evita los siguientes pasos cuando el script recibe la orden. Una eliminación ya confirmada no puede deshacerse. |
+| Campo | Predeterminado | Valores | Significado |
+| --- | --- | --- | --- |
+| Máximo de elementos | `0` | Entero de `0` a `100000` | `0`: continuar hasta que no se encuentren más tarjetas al desplazar. Un valor positivo limita las eliminaciones verificadas de esa ejecución. |
+| Espera entre elementos (s) | `4` | Entero de `1` a `3600` | Tiempo mínimo después de verificar una eliminación y antes de abrir el siguiente menú. |
 
-Los elementos **procesados** se contabilizan a partir de la cantidad seleccionada, después de verificar progreso o vacío en la página recargada. Durante esa comprobación el lote está pendiente y el contador todavía no avanza. Si reaparece la misma lista, no se contabiliza ese lote y se bloquea la siguiente eliminación. La huella es una comprobación conservadora de la interfaz, no una certificación del servidor ni una prueba absoluta de borrado.
+Cada ciclo hace lo siguiente:
 
-## Cuándo se detiene
+1. Reconoce una tarjeta por sus controles y enlaces; vuelve a consultar el DOM para tolerar que Facebook lo reconstruya.
+2. Desplaza la tarjeta a la vista si hace falta y abre **sus tres puntos**, sin pulsar Compartir ni Agregar a colección.
+3. Busca **Eliminar** dentro del menú recién abierto. También reconoce las variantes exactas documentadas en el adaptador para español e inglés. Nunca busca un Eliminar genérico por toda la página.
+4. Pulsa esa opción una sola vez y comprueba que la tarjeta ya no esté en la lista, sin carga ni diálogo pendientes, durante un segundo estable. Si no puede verificarlo, se detiene sin reintentar ni recargar.
+5. Aumenta el contador, espera los segundos configurados y continúa.
+6. Cuando no quedan tarjetas pendientes reconocibles, desplaza el área de la lista para cargar más. Si Facebook muestra carga, espera a que termine; si no aparecen nuevas tarjetas tras tres intentos de desplazamiento, finaliza explicando esa limitación.
 
-- Facebook muestra una lista explícitamente vacía después de recargar, o se alcanza el máximo de lotes.
-- Pulsas **Detener ejecución** o cierras la pestaña autorizada.
-- La página, la casilla, el contador o los botones no pueden reconocerse sin ambigüedad.
-- En 15 segundos no puede comprobar ni carga ni evidencia estable de eliminación, o el proceso no termina dentro de los 90 segundos siguientes a detectar la carga.
-- La lista sigue igual después de recargar, hay una selección manual previa o aparece un mensaje de error o verificación reconocido.
-- Recargas manualmente o navegas mientras un lote estaba pendiente. No se reanuda automáticamente una eliminación incierta.
+El tiempo real entre clics será mayor que la pausa configurada, porque incluye la respuesta de Facebook y su comprobación. No hay recarga entre elementos: se conserva la lista cargada. Si aparece un diálogo de confirmación diferente o una interfaz desconocida, la extensión se detiene para revisión.
 
-Si se detiene después de confirmar una eliminación, **revisa el resultado antes de iniciar otra ejecución**. No hay reintentos automáticos. La detección de errores depende de textos reconocidos; no cubre todas las alertas posibles de Facebook.
+## Registro de actividad: lotes
 
-El estado vive en `chrome.storage.session`: sobrevive a las recargas de Facebook y a la suspensión del service worker. Se pierde al cerrar el navegador o al desactivar, actualizar o recargar la extensión. Después de cualquiera de esas acciones, debes iniciar de nuevo; nunca se activa una limpieza por abrir Chrome.
+1. Selecciona **Registro de actividad: lotes** y pulsa **Abrir mis elementos guardados**.
+2. Si el enlace no funciona, navega por **Configuración y privacidad → Registro de actividad → Tu actividad en Facebook → Elementos guardados y colecciones → Tus elementos guardados**.
+3. Deja Todo sin marcar y cierra los diálogos. Pulsa **Comprobar esta página**.
+4. Empieza con **Máximo de lotes: 1**, **Pausa entre lotes: 10 s**, marca la aceptación e inicia.
+5. Revisa el resultado antes de aumentar el límite. Facebook decide cuántos elementos carga por lote; no se presupone que sean 20.
 
-## Problemas frecuentes
+Se permite un máximo de `1` a `500` lotes y una pausa de `3` a `3600` segundos. El script lee el contador únicamente en la barra que reúne Todo, Desmarcar y Eliminar, acepta un número sin texto y confirma en el diálogo con Cancelar y Eliminar.
 
-| Mensaje o situación | Qué hacer |
+Detecta señales de carga y capas que bloquean la página. Cuando la selección se restablece y la interfaz permanece disponible durante 1.5 segundos, solicita una recarga normal con `chrome.tabs.reload`. También admite una recarga de verificación si Facebook conserva las filas antiguas hasta recargar. **Los contadores avanzan sólo después de comprobar progreso en la página nueva**. Si reaparece la misma lista, se detiene sin contar ni repetir ese lote. El último lote también se recarga y verifica.
+
+Si Facebook deja de mostrar elementos anteriores a cierta fecha en el Registro de actividad, utiliza el modo **Guardados: uno por uno**. La extensión no puede obligar a Facebook a entregar datos que la página no proporciona.
+
+## Detener y comprobar el resultado
+
+- Pulsa **Detener ejecución** para evitar los siguientes clics. Una solicitud de eliminación que ya se envió no puede cancelarse desde el panel.
+- Cerrar el panel no detiene la ejecución. Cerrar la pestaña de Facebook sí la detiene.
+- Mantén Chrome abierto y la pestaña de Facebook visible. Evita manipular sus controles, cambiar de perfil, navegar o recargar manualmente durante la ejecución.
+- Una recarga inesperada bloquea la continuación; revisa el resultado y empieza una ejecución nueva.
+- El estado es temporal, en la sesión de Chrome. No hay reanudación automática después de reiniciar el navegador.
+- Al terminar, revisa Guardados por tu cuenta. «No aparecieron más tarjetas» significa que Facebook no entregó más en ese recorrido, no que se hayan verificado todos los guardados del servidor.
+
+## Resolver problemas
+
+| Síntoma | Qué hacer |
 | --- | --- |
-| «Recarga Facebook una vez…» | Recarga la pestaña después de instalar o actualizar la extensión. |
-| No encuentra «Tus elementos guardados» | Comprueba que estés en esa subcategoría del Registro de actividad. La página general Guardados no sirve. |
-| El enlace directo abre otra pantalla | Sigue la ruta manual. El script mantiene la comprobación de categoría antes de hacer clic. |
-| No encuentra «Todo», el contador o un botón | Detén la ejecución. La interfaz puede haber cambiado o estar en un idioma no compatible. No elimines las comprobaciones para forzarla. |
-| «No se pudo comprobar la cantidad…» y la barra sólo muestra un número, como `16` | Actualiza a 0.1.1 o posterior. Recarga la extensión en `chrome://extensions` y después recarga Facebook para quitar la selección pendiente. Prueba con un lote. |
-| No se observó el indicador de carga ni un resultado verificable | Tampoco se pudo comprobar que desaparecieran los elementos seleccionados o que la vista quedara explícitamente vacía y estable. Revisa los guardados manualmente; no se recargará ni repetirá el lote. |
-| Se borran elementos al recargar, pero la extensión decía que no observó carga o progreso | Actualiza a 0.1.4 o posterior. Las versiones anteriores podían confundir la barra superior con el círculo central y exigían cambios de filas antes de recargar. Esta versión verifica el resultado al recargar cuando la página vuelve a estar disponible. |
-| La lista sigue igual | Revisa si la eliminación funcionó. También puede ser una limitación de la huella si dos lotes tienen el mismo texto. |
-| Muestra «No hay nada para mostrar» después de borrar | Se recarga para comprobar si quedan más lotes. Desde 0.1.3 se reconoce ese mensaje, incluso si Todo permanece visible y deshabilitado. Si aparece un texto de vacío diferente no reconocido, revisa el estado manualmente. |
-| Facebook pide contraseña, CAPTCHA o verificar identidad | Detén la ejecución y resuelve la comprobación manualmente. La extensión no la supera ni intenta eludirla. |
-| Cambiaste archivos del repositorio | En `chrome://extensions`, pulsa Recargar en la extensión; luego recarga Facebook. Inicia una ejecución nueva. |
+| No se reconoce una tarjeta o su menú | Comprueba que estés en la vista general de Guardados, en español o inglés, con tarjetas cargadas y los tres botones indicados. Guarda el mensaje exacto para reportarlo. |
+| Eliminar no aparece en el menú | La extensión se detiene. No se pulsa otra opción parecida ni un botón de otra parte de la página. |
+| Se quitó una tarjeta pero no avanza el contador | No pudo verificar su desaparición con la interfaz disponible. Revisa manualmente, detén la ejecución y vuelve a comprobar la página. No se repite la eliminación automáticamente. |
+| Termina aunque sabes que quedan guardados | Facebook puede estar limitando la carga, haber virtualizado tarjetas o mostrar un filtro. Vuelve a la vista general, revisa por tu cuenta y comienza otro recorrido desde arriba si corresponde. |
+| No se pudo comprobar la cantidad seleccionada | Este mensaje corresponde al modo por lotes. Actualiza, recarga la extensión y Facebook, y prueba un lote. |
+| CAPTCHA, solicitud de contraseña, bloqueo o verificación | Detén el proceso y resuelve la situación manualmente. |
+| Actualizaste los archivos pero ves el comportamiento anterior | Recarga la extensión en `chrome://extensions` y después la pestaña de Facebook. |
 
-Para reportar un problema, incluye el mensaje exacto, la versión de Chrome, el idioma de Facebook y en qué paso se detuvo. Si compartes una captura, oculta nombres y contenido privado. **No adjuntes cookies, contraseñas, tokens ni archivos de sesión.**
+Para reportar un problema, incluye versión de la extensión, versión de Chrome, idioma, modo elegido y mensaje exacto. Oculta los datos privados en capturas. **No compartas contraseñas, cookies, tokens ni archivos de sesión.**
 
-## Privacidad, permisos y restricciones
+## Privacidad y permisos
 
-- Todo el código de la extensión está incluido en `extension/`; no descarga código remoto.
-- El permiso `storage` conserva estado temporal y contadores. El acceso a `https://www.facebook.com/*` permite reconocer la página y volver a ejecutar el script después de cada recarga. Ese permiso permite leer y modificar el DOM de Facebook, por lo que debes revisar el código antes de instalarlo.
-- No solicita permisos de cookies, historial o contraseñas, y no exporta tu sesión.
-- No añade analítica, servidores propios ni solicitudes a APIs privadas de Facebook. Los clics activan las solicitudes normales de la propia página.
-- No guarda texto de publicaciones ni sus enlaces. La huella se calcula localmente y sólo se conserva su hash junto con el estado de ejecución en memoria de sesión.
-- No incluye técnicas para ocultar la automatización o superar restricciones. **No se garantiza evitar bloqueos, verificaciones o sanciones de cuenta**, aunque se usen pausas.
+El código está incluido en `extension/`; no descarga código remoto, no añade analítica ni servidores propios y no consulta APIs privadas de Facebook. Los clics activan las solicitudes normales de la página.
 
-Consulta las [condiciones de Facebook](https://www.facebook.com/legal/terms) y la [explicación de Meta sobre automatización y sus controles](https://about.fb.com/news/2021/04/how-we-combat-scraping/). Este proyecto no está afiliado a Meta y no presenta la automatización de una cuenta como expresamente autorizada por Meta.
+El permiso `storage` guarda estado y contadores en memoria de sesión. El acceso a `https://www.facebook.com/*` permite leer y modificar el DOM y reinyectar el script después de las recargas del modo por lotes. No se solicitan permisos de cookies, historial o contraseñas. Las identidades de tarjetas se representan mediante hashes locales; no se almacenan textos ni enlaces de publicaciones en el estado de la extensión.
 
-## Desinstalar
+No se incluyen técnicas para ocultar la automatización ni eludir controles. Consulta las [condiciones de Facebook](https://www.facebook.com/legal/terms). El proyecto no está afiliado a Meta.
 
-En `chrome://extensions`, localiza **FB Unsave All** y pulsa **Quitar**. Esto elimina la extensión y su estado; no restaura guardados que ya se hayan quitado.
+## Desinstalar y desarrollar
 
-## Desarrollo y licencia
+En `chrome://extensions`, pulsa **Quitar** en FB Unsave All. Esto no restaura los guardados eliminados.
 
-Consulta [DEVELOPMENT.md](docs/DEVELOPMENT.md) para conocer la estructura, las pruebas y las limitaciones de validación. Código distribuido bajo [licencia MIT](LICENSE).
+Consulta [DEVELOPMENT.md](docs/DEVELOPMENT.md) para ejecutar pruebas y contribuir. Código bajo [licencia MIT](LICENSE).

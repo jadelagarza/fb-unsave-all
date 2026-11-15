@@ -1,5 +1,15 @@
 # Cambios
 
+## 1.0.0 — 15 de noviembre de 2026
+
+- Añade el modo predeterminado **Guardados: uno por uno** en `/saved/`, con los tres puntos y la opción Eliminar del menú de cada tarjeta.
+- Añade desplazamiento automático para acceder a los controles y cargar nuevas tarjetas conforme se necesiten, sin recargas entre elementos.
+- Configura la espera entre elementos en segundos (4 por defecto) y un máximo opcional (0 para continuar mientras aparezcan tarjetas).
+- Verifica la desaparición estable de cada tarjeta antes de contarla; detiene la ejecución ante resultados inciertos, menús ambiguos o alertas de Facebook.
+- Conserva el modo por lotes del Registro de actividad y sus comprobaciones de recarga y progreso.
+- Actualiza el panel, las guías en español e inglés, la documentación de desarrollo y las pruebas de ciclo y Chromium para ambos modos.
+- Publica la primera versión mayor; el modo inicial del panel cambia de Registro de actividad a Guardados. Al actualizar, recarga la extensión y Facebook y selecciona explícitamente el modo que quieras usar.
+
 ## 0.1.4 — 14 de noviembre de 2026
 
 - Corrige una identificación equivocada: la barra global de 4px en la parte superior no es el círculo central de eliminación.

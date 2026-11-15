@@ -107,6 +107,10 @@
     try {
       run = (await send("hello")).run;
       if (!run) return;
+      if (run.mode === "saved") {
+        await globalThis.runFBSaved(run, { send, alive, pause });
+        return;
+      }
       const state = await stableReady();
       await check(run);
       if (run.awaitingVerification && !state.empty && state.fingerprint === run.lastFingerprint) {
@@ -160,7 +164,7 @@
   chrome.runtime.onMessage.addListener((message, _sender, reply) => {
     if (message?.app !== "fb-unsave-all") return false;
     if (message.type === "inspect") {
-      try { reply({ ok: true, inspection: dom.inspect() }); }
+      try { reply({ ok: true, inspection: message.mode === "saved" ? globalThis.FBSaved.inspect() : dom.inspect() }); }
       catch (error) { reply({ ok: false, error: error.message }); }
     } else if (message.type === "go") {
       if (active) reply({ ok: false, error: "La ejecución anterior todavía se está deteniendo. Espera un momento y vuelve a iniciar." });

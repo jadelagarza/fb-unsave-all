@@ -9,16 +9,22 @@
 </head>
 <body>
   <header><small>LIMPIEZA DE GUARDADOS</small><h1>FB Unsave All</h1></header>
-  <p>Vacía tus guardados por lotes desde el Registro de actividad de Facebook.</p>
+  <p>Quita guardados con los controles visibles de Facebook.</p>
+  <label>Modo de limpieza<select id="mode"><option value="saved" selected>Guardados: uno por uno</option><option value="activity">Registro de actividad: lotes</option></select></label>
   <button id="open" class="secondary">1. Abrir mis elementos guardados</button>
   <button id="inspect" class="secondary">2. Comprobar esta página</button>
   <p id="inspection" role="status">Abre Facebook e inicia sesión por tu cuenta.</p>
   <form id="form">
-    <div class="fields">
+    <div class="fields" id="saved-fields">
+      <label>Máximo de elementos<input id="items" type="number" min="0" max="100000" value="0" required></label>
+      <label>Espera entre elementos (s)<input id="item-delay" type="number" min="1" max="3600" value="4" required></label>
+    </div>
+    <p id="saved-hint" class="hint">0 = continuar hasta que no aparezcan más tarjetas al desplazar. Se hace scroll automáticamente cuando hace falta. Para probar, usa un máximo de 1 elemento.</p>
+    <div class="fields" id="activity-fields" hidden>
       <label>Máximo de lotes<input id="batches" type="number" min="1" max="500" value="1" required></label>
       <label>Pausa entre lotes (s)<input id="delay" type="number" min="3" max="3600" value="10" required></label>
     </div>
-    <p class="hint">Empieza con 1 lote y revisa el resultado. Para unos 1,500 guardados en lotes de 20, necesitarías cerca de 75 lotes.</p>
+    <p id="activity-hint" class="hint" hidden>Empieza con 1 lote y revisa el resultado. El Registro de actividad puede omitir guardados antiguos; usa el otro modo si ocurre.</p>
     <label class="ack"><input id="ack" type="checkbox" required><span>Entiendo que se quitarán los guardados seleccionados y que una eliminación confirmada no se puede cancelar.</span></label>
     <button id="start" type="submit">3. Iniciar limpieza</button>
   </form>
@@ -26,8 +32,8 @@
   <section aria-label="Progreso" aria-live="polite">
     <strong id="status">Sin ejecución</strong>
     <p id="message">La extensión no actúa hasta que pulses Iniciar.</p>
-    <div class="metrics"><span><b id="completed">0</b> lotes procesados</span><span><b id="processed">0</b> elementos procesados*</span></div>
-    <small>*Se contabilizan después de verificar la página recargada. Comprueba también el resultado en Guardados.</small>
+    <div class="metrics"><span id="batch-metric" hidden><b id="completed">0</b> lotes procesados</span><span><b id="processed">0</b> elementos procesados*</span></div>
+    <small id="counter-hint">*Se contabilizan cuando se comprueba que la tarjeta desapareció. Comprueba también el resultado en Guardados.</small>
   </section>
   <p id="error" role="alert"></p>
   <footer>Uso local y supervisado. Las pausas no garantizan evitar restricciones de Facebook. Cerrar este panel no detiene la ejecución.</footer>

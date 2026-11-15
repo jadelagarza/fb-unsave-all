@@ -1,6 +1,11 @@
 "use strict";
 const KEY = "run";
-const SAVED_URL = "https://www.facebook.com/me/allactivity/?category_key=SAVEDFORLATER";
+const URLS = { saved: "https://www.facebook.com/saved/", activity: "https://www.facebook.com/me/allactivity/?category_key=SAVEDFORLATER" };
+function modeOf(message) {
+  const mode = message.mode ?? "activity"; // Compatibility with pre-1.0 messages and tests.
+  if (!Object.hasOwn(URLS, mode)) throw new Error("Modo inválido.");
+  return mode;
+}
 let queue = Promise.resolve();
 const read = async () => (await chrome.storage.session.get(KEY))[KEY] || null;
 const write = async (run) => { await chrome.storage.session.set({ [KEY]: run }); return run; };
@@ -26,29 +31,36 @@ async function handle(message, sender) {
     if (!extensionSender(sender)) throw new Error("Origen no autorizado.");
     if ((await read())?.status === "running") throw new Error("Detén la ejecución antes de abrir otra página.");
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab && validTabUrl(tab.url)) await chrome.tabs.update(tab.id, { url: SAVED_URL });
-    else await chrome.tabs.create({ url: SAVED_URL });
+    const url = URLS[modeOf(message)];
+    if (tab && validTabUrl(tab.url)) await chrome.tabs.update(tab.id, { url });
+    else await chrome.tabs.create({ url });
     return { ok: true };
   }
   if (message.type === "inspect" || message.type === "start") {
     if (!extensionSender(sender)) throw new Error("Origen no autorizado.");
+    const mode = modeOf(message);
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab || !validTabUrl(tab.url)) throw new Error("Abre la pestaña de Facebook que vas a limpiar.");
     let result;
-    try { result = await chrome.tabs.sendMessage(tab.id, { app: "fb-unsave-all", type: "inspect" }, { frameId: 0 }); }
+    try { result = await chrome.tabs.sendMessage(tab.id, { app: "fb-unsave-all", type: "inspect", mode }, { frameId: 0 }); }
     catch { throw new Error("Recarga Facebook una vez para activar la extensión recién instalada."); }
     if (!result?.ok) throw new Error(result?.error || "No se pudo comprobar la página.");
     if (message.type === "inspect") return { inspection: result.inspection };
     if ((await read())?.status === "running") throw new Error("Ya hay una ejecución activa; deténla primero.");
     if (message.acknowledged !== true) throw new Error("Debes confirmar que quieres quitar los guardados.");
-    const maxBatches = Number(message.maxBatches);
+    const maxBatches = mode === "activity" ? Number(message.maxBatches) : 0;
+    const maxItems = mode === "saved" ? Number(message.maxItems ?? 0) : 0;
     const delaySeconds = Number(message.delaySeconds);
-    if (!Number.isInteger(maxBatches) || maxBatches < 1 || maxBatches > 500) throw new Error("El límite debe estar entre 1 y 500 lotes.");
-    if (!Number.isInteger(delaySeconds) || delaySeconds < 3 || delaySeconds > 3600) throw new Error("La pausa debe estar entre 3 y 3600 segundos.");
+    if (mode === "activity" && (!Number.isInteger(maxBatches) || maxBatches < 1 || maxBatches > 500)) throw new Error("El límite debe estar entre 1 y 500 lotes.");
+    if (mode === "saved" && (!Number.isInteger(maxItems) || maxItems < 0 || maxItems > 100000)) throw new Error("El límite debe ser 0 (todos los cargados) o entre 1 y 100000 elementos.");
+    const minimum = mode === "saved" ? 1 : 3;
+    if (!Number.isInteger(delaySeconds) || delaySeconds < minimum || delaySeconds > 3600) throw new Error(`La pausa debe estar entre ${minimum} y 3600 segundos.`);
+    if (mode === "saved" && result.inspection.mode !== "saved") throw new Error("La página no corresponde al modo Guardados.");
     if (!result.inspection.ready || result.inspection.empty) throw new Error("La lista no está lista o ya está vacía.");
     const run = await write({
       id: crypto.randomUUID(), tabId: tab.id, documentId: null, status: "running", phase: "starting",
-      maxBatches, delayMs: delaySeconds * 1000, batches: 0, processed: 0, pendingSelected: 0,
+      mode, maxBatches, maxItems, planned: 0, pendingKey: null, lastCompletedKey: null,
+      delayMs: delaySeconds * 1000, batches: 0, processed: 0, pendingSelected: 0,
       lastFingerprint: null, awaitingVerification: false, notBefore: 0,
       startedAt: Date.now(), message: "Iniciando…"
     });
@@ -72,7 +84,7 @@ async function handle(message, sender) {
     const run = await read();
     if (!run || run.status !== "running" || sender.tab?.id !== run.tabId || sender.frameId !== 0) return { run: null };
     if (run.documentId && run.documentId !== sender.documentId && run.phase !== "reloading") {
-      await write({ ...run, status: "blocked", message: "Recarga o navegación inesperada. Revisa el lote antes de iniciar otra ejecución." });
+      await write({ ...run, status: "blocked", message: "Recarga o navegación inesperada. Revisa el resultado antes de iniciar otra ejecución." });
       return { run: null };
     }
     if (!validTabUrl(sender.tab.url)) throw new Error("Página no autorizada.");
@@ -80,9 +92,27 @@ async function handle(message, sender) {
   }
   const run = await requireOwner(sender, message.id);
   if (message.type === "check") return { run };
+  if (["saved-plan", "saved-pending", "saved-completed"].includes(message.type)) {
+    if (run.mode !== "saved") throw new Error("La ejecución no está en el modo Guardados.");
+    if (message.type === "saved-plan") {
+      if (!["ready", "scrolling"].includes(run.phase) || run.pendingKey || !Number.isInteger(message.total) || message.total <= run.planned ||
+          message.total > 100000 || (run.maxItems && message.total > run.maxItems)) throw new Error("Plan de elementos inválido.");
+      return { run: await write({ ...run, planned: message.total }) };
+    }
+    if (!run.planned || run.processed >= run.planned || !/^[a-f0-9]{1,8}$/.test(message.key || "")) throw new Error("Elemento pendiente inválido.");
+    if (message.type === "saved-pending") {
+      if (run.phase !== "selecting" || run.pendingKey || message.key === run.lastCompletedKey || Date.now() < run.notBefore) throw new Error("No se puede eliminar otro elemento en este estado.");
+      return { run: await write({ ...run, pendingKey: message.key, phase: "deleting" }) };
+    }
+    if (run.phase !== "waiting" || run.pendingKey !== message.key || message.evidenceVerified !== true) throw new Error("No se ha verificado la eliminación del elemento pendiente.");
+    return { run: await write({ ...run, processed: run.processed + 1, pendingKey: null, lastCompletedKey: message.key,
+      phase: "ready", notBefore: Date.now() + run.delayMs, message: `Elemento eliminado y comprobado. ${run.processed + 1} de ${run.planned}.` }) };
+  }
   if (message.type === "phase") {
-    const allowed = ["selecting", "confirming", "deleting", "waiting", "cooldown", "verifying"];
+    const allowed = ["selecting", "confirming", "deleting", "waiting", "cooldown", "verifying", "scrolling"];
     if (!allowed.includes(message.phase)) throw new Error("Fase inválida.");
+    if (run.mode === "saved" && ["confirming", "verifying"].includes(message.phase)) throw new Error("Fase no válida para Guardados.");
+    if (run.mode !== "saved" && message.phase === "scrolling") throw new Error("Fase no válida para Registro de actividad.");
     const update = { ...run, phase: message.phase, message: String(message.text || message.phase) };
     if (message.phase === "confirming") {
       if (!Number.isInteger(message.selected) || message.selected < 1 || message.selected > 10000) throw new Error("Contador inválido.");
@@ -103,6 +133,7 @@ async function handle(message, sender) {
     return { run: await write({ ...run, status: message.type === "finish" ? "finished" : "blocked", message: String(message.text) }) };
   }
   if (message.type === "reload") {
+    if (run.mode === "saved") throw new Error("El modo Guardados no recarga la página entre elementos.");
     const validCompletion = message.evidenceVerified === true &&
       ((message.completionKind === "loading" && message.loadingObserved === true) ||
        message.completionKind === "empty" || message.completionKind === "items-removed" ||

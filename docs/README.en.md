@@ -1,62 +1,80 @@
 # FB Unsave All — English guide
 
-[Español](../README.md) · [Development and verification](DEVELOPMENT.md)
+[Español](../README.md) · [Development and verification](DEVELOPMENT.md) · [Changelog](../CHANGELOG.md)
 
-FB Unsave All is a local Chrome extension that clears your Facebook saved items using the batch controls in Activity Log. It reloads the tab **only after deletion completion has been verified**, the dialog has closed, selection has reset, and the resulting UI has remained stable for 1.5 seconds. It resumes after that reload.
+**Version 1.0.0** adds one-at-a-time removal on [Facebook Saved](https://www.facebook.com/saved/), with automatic scrolling and a configurable delay. Activity Log batches remain available. The popup is in Spanish; the adapters recognize the documented Spanish and English controls.
 
-**Version 0.1.4 is pending full verification of the corrected cycle on a real Facebook account.** It distinguishes the 4px navigation bar from a blocking deletion spinner, recognizes decorative SVG/animated loading overlays, and supports stale rows that only update after reload. Each batch is counted only after verification on the fresh page. Automated tests use simulated pages and do not establish compatibility with every Facebook rollout.
+This removes references from your saved list, not the original posts. The extension cannot restore removed saves. Delays do not guarantee protection from Facebook restrictions. Automated tests use simulated pages; test the new mode with **one item** on your account before running a larger cleanup.
 
-## Install
+## Install or update
 
-1. Download this repository using **Code → Download ZIP**, then extract it, or clone it:
+1. Use desktop Google Chrome 120 or newer on macOS, Windows or Linux.
+2. Download **Code → Download ZIP** and extract it, or clone:
 
    ```bash
    git clone https://github.com/jadelagarza/fb-unsave-all.git
    ```
 
-2. Use desktop Google Chrome 120 or newer on macOS, Windows, or Linux.
 3. Open `chrome://extensions` and enable **Developer mode**.
-4. Click **Load unpacked**, then select this repository's **`extension` directory**, which contains `manifest.json`.
-5. Pin **FB Unsave All** in Chrome's extensions menu if desired.
-6. Reload an already-open Facebook tab once after installing or updating the extension.
+4. Choose **Load unpacked** and select the repository's **`extension` directory**, containing `manifest.json`.
+5. Open **FB Unsave All** from Chrome's extensions menu.
+6. Reload an already-open Facebook tab once to activate the content script.
 
-Keep the extracted directory in place. This project is not currently published on Chrome Web Store. End users do not need Node.js or any npm packages.
+To update, stop any active run, download the current files or run `git pull`, then click **Reload** on the extension in `chrome://extensions`. Verify version **1.0.0** and reload Facebook once. Keep the extracted directory in place. No Node.js or npm packages are required for end users. This project has no official Chrome Web Store listing.
 
-## Start with one batch
+## Saved: one item at a time
 
-1. Sign in to Facebook yourself. The extension does not manage passwords or two-factor authentication.
-2. Open the extension popup and click **1. Abrir mis elementos guardados**. This navigates your current Facebook tab to the Activity Log saved-items link. It does not delete anything by itself.
-3. If the link does not work, navigate manually: **Settings & privacy → Activity log → Your activity across Facebook → Saved items and collections → Your saved items**. Clear date filters and any existing selection.
-4. Keep Facebook in Spanish or English. The adapter requires the dedicated heading **Tus elementos guardados** or **Your saved items**, plus a recognized **Todo / All / Select all** checkbox.
-5. Click **2. Comprobar esta página**. Inspection does not select or delete anything.
-6. Keep **Máximo de lotes** at **1** and **Pausa entre lotes (s)** at **10** for the first run. Read and tick the acknowledgement, then click **3. Iniciar limpieza**.
-7. Keep Chrome open and the Facebook tab visible. Do not manually operate that tab or switch Facebook profiles during a run. Closing the popup does not stop the run.
-8. The extension selects All, reads the selected count, clicks the toolbar Delete button, then the confirmation-dialog Delete button. It verifies completion before a normal tab reload. Even the final authorized batch is reloaded.
-9. Check the general Saved screen manually to confirm that the trial batch was actually unsaved.
+1. Sign in to Facebook yourself.
+2. Choose **Guardados: uno por uno** (the new default) in the popup.
+3. Click **1. Abrir mis elementos guardados**, or open [facebook.com/saved/](https://www.facebook.com/saved/). Use the general saved-items view outside any collection. Start at the top to traverse from the beginning.
+4. Wait for cards to appear and close menus or dialogs. You may have already scrolled to load cards; the extension can also scroll as needed.
+5. Click **2. Comprobar esta página**. The reported card count is the currently recognized set, not your account's total saved items.
+6. For the first test, set **Máximo de elementos** to **1** and **Espera entre elementos (s)** to **4**.
+7. Tick the acknowledgment checkbox and click **3. Iniciar limpieza**. Acknowledgment is required once per run, in both modes.
+8. Check the result. For another run, set a larger maximum or **0** to continue while more cards can be found.
 
-Once the trial works, start a new run with a suitable batch limit. Roughly 1,500 saved items at 20 per batch require 75 batches. A limit of 100 leaves room; the run stops early if Facebook explicitly reports an empty list. The selected batch size comes from Facebook and is not hard-coded to 20.
+| Setting | Default | Range | Meaning |
+| --- | --- | --- | --- |
+| Máximo de elementos | `0` | Integer `0`–`100000` | `0` continues until scrolling stops yielding cards. A positive number limits verified removals. |
+| Espera entre elementos (s) | `4` | Integer `1`–`3600` | Minimum delay after verifying a removal and before opening the next item's menu. |
 
-The batch limit accepts 1–500; the pause accepts 3–3,600 seconds. These are workload controls, **not Meta-approved safe automation thresholds**. Counters reset for each new run. A pending batch is counted only after the fresh page confirms progress or an empty list. This is UI verification, not server-certified deletion.
+For each card, the extension scrolls its controls into view if needed, opens its three-dot button, and selects the exact **Eliminar / Delete** action (or the adapter's explicitly recognized unsave variant) inside the newly opened menu. It does not select Share or Add to collection, or search the whole page for a Delete button.
 
-## Stopping and failures
+It verifies that the card disappeared, with no loading or dialog pending, for one stable second before incrementing the counter. It then waits the configured delay. The actual interval between clicks includes Facebook's response and verification time. If verification fails, it stops without retrying or reloading. Unexpected confirmation dialogs require manual review.
 
-- Click **Detener ejecución** to stop subsequent actions, or close the authorized Facebook tab. A deletion already confirmed cannot be cancelled or undone by this tool.
-- If no loader is observed, a verification reload is allowed after captured items disappear, an explicit empty state appears, or selection resets and All becomes available without an intercepting overlay. The dialog must be closed, deletion controls inactive, and the resulting UI stable for 1.5 seconds. A restored checkbox does not certify deletion: the fresh page must confirm progress before counting the batch or submitting another deletion.
-- If neither loading nor verifiable completion can be established within 15 seconds, or completion does not follow within 90 seconds after observing loading, the extension stops without a blind reload or retry.
-- Blocking visual loading overlays are monitored even when the spinner is decorative and has no accessible loading label. The 4px navigation progressbar is excluded. CSS-hidden, fully transparent, detached, or ancestor-hidden indicators are considered invisible. A blocking overlay prevents verification reloads even if selection resets early.
-- Unrecognized or ambiguous controls, a recognized error or security challenge, a pre-existing selection, or an unchanged list after reload stops the run.
-- Missing controls alone do not count as an empty list. «No hay nada para mostrar» is recognized even if a disabled All checkbox remains. An empty view before reload does not finish the run: it reloads to check for more batches and only finishes as empty after that fresh check.
-- An unexpected manual reload during a pending batch blocks automatic resumption. Inspect the outcome before starting again.
-- After updating the extension in `chrome://extensions`, reload Facebook too.
+When no recognized pending cards remain, it scrolls to load more. Loading is allowed to finish, with a bounded timeout. If three scroll attempts yield no new cards, the run ends with an explanation. **No page reload occurs between items.** The final message distinguishes an explicitly empty view from Facebook failing to deliver more cards. Neither proves that every server-side save has been checked.
 
-Progress is kept in extension session memory. It survives page reloads and service-worker suspension, but is cleared when the browser closes or the extension is disabled, updated, or reloaded. Opening Chrome never starts a cleanup automatically.
+## Activity Log batches
 
-## Privacy and risk
+1. Choose **Registro de actividad: lotes** and click **Abrir mis elementos guardados**.
+2. If the link fails, navigate manually through **Settings & privacy → Activity log → Your Facebook activity → Saved items and collections → Your saved items**.
+3. Leave All unchecked, close dialogs and click **Comprobar esta página**.
+4. Start with **Máximo de lotes: 1**, **Pausa entre lotes (s): 10**, acknowledge and start.
+5. Verify the result before increasing the maximum. Facebook determines each batch's size.
 
-The extension requests temporary storage and access to `https://www.facebook.com/*`. This gives it permission to read and change Facebook's DOM; review the included source before installing. It does not request cookie/password/history permissions, export sessions, add analytics, fetch remote code, or call private Facebook APIs. It stores counters and a local hash, not saved-post text or links.
+Limits: `1`–`500` batches; `3`–`3600` seconds between batches. This mode selects All, reads the counter only inside the selection toolbar, clicks Delete and confirms in the dialog containing Cancel and Delete. It waits for loading/blocking layers and selection to clear, with 1.5 seconds of stability, then requests a normal tab reload. Stale rows can trigger a verification reload when the interface is ready. Counters advance only after the fresh page confirms progress. An unchanged list blocks further deletion; the final batch is reloaded and verified too.
 
-Automation can trigger restrictions or checks, and pauses do not guarantee otherwise. The extension does not bypass CAPTCHAs, identity checks, or rate limits. Review [Facebook's terms](https://www.facebook.com/legal/terms) and [Meta's explanation of automation controls](https://about.fb.com/news/2021/04/how-we-combat-scraping/). This project is not affiliated with Meta and does not claim Meta has authorized it.
+If Activity Log omits older saves, use **Guardados: uno por uno**. The extension cannot force Facebook to provide missing data.
 
-When reporting an issue, provide the exact error, Chrome version, Facebook language, and the step that failed. Redact personal content from screenshots. Never provide cookies, passwords, tokens, or session files.
+## Stop, recover and troubleshoot
 
-To uninstall, open `chrome://extensions` and click **Remove**. Removing the extension does not restore items already unsaved. See [MIT license](../LICENSE).
+- **Detener ejecución** prevents subsequent clicks. It cannot cancel a removal request already sent.
+- Closing the popup does not stop a run. Closing the Facebook tab stops it.
+- Keep Chrome open and the Facebook tab visible. Avoid operating its controls, switching profiles, navigating or manually reloading during a run.
+- An unexpected reload blocks continuation. Check the result before starting a new run. State is temporary; restarting Chrome does not resume the run.
+- Unknown cards, ambiguous identities, missing menu actions or unverified removal stop the process. It never selects a similarly named action to force progress.
+- If a run ends while saves remain, check filters, collections, virtualization and Facebook's loading behavior manually. Another traversal from the top may be necessary.
+- Resolve CAPTCHA, identity checks, errors and restrictions yourself. The extension does not bypass them.
+- After changing files, reload both the extension and Facebook.
+
+When reporting an issue, include the extension and Chrome versions, language, mode and exact message. Redact private information. Never provide passwords, cookies, tokens or session files.
+
+## Privacy and permissions
+
+All extension code ships in `extension/`. There is no remote code, telemetry, custom server or private Facebook API access. Clicking the page's controls triggers its normal requests.
+
+`storage` keeps temporary session state and counters. Access to `https://www.facebook.com/*` allows DOM inspection and modification, and reinjection after Activity Log reloads. It requests no cookie, history or password permissions. Card identities are represented by local hashes; post text and links are not stored in extension state.
+
+There are no techniques to conceal automation or evade restrictions. Read [Facebook's terms](https://www.facebook.com/legal/terms). This project is not affiliated with Meta.
+
+To uninstall, click **Remove** on the extension in `chrome://extensions`. This does not restore removed saves. See [DEVELOPMENT.md](DEVELOPMENT.md) for tests and contribution guidance. Licensed under [MIT](../LICENSE).

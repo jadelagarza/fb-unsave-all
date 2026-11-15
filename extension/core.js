@@ -275,6 +275,6 @@
       heading: "Tus elementos guardados / Your saved items"
     };
   }
-  root.FBUnsave = Object.freeze({ normalize, visible, name, buttons, unique, dialogs, confirmationOpen, checked,
+  root.FBUnsave = Object.freeze({ normalize, visible, visuallyVisible, name, buttons, unique, dialogs, confirmationOpen, checked,
     assertPage, isLoading, interactionState, selectedCount, fingerprint, captureDeletion, deletionState, ready, toolbarDelete, confirmationDelete, inspect });
 })(globalThis);

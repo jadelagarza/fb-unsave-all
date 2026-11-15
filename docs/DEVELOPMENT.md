@@ -6,11 +6,15 @@
 | --- | --- |
 | `extension/manifest.json` | Extensión Manifest V3, acceso sólo a `www.facebook.com` y almacenamiento de sesión. |
 | `extension/core.js` | Adaptador DOM: categoría, casilla, contador, botones, diálogo, indicadores y mensajes. |
-| `extension/content.js` | Un lote por documento: selección, confirmación, observación de carga y petición de recarga. |
+| `extension/saved.js` | Adaptador de `/saved/`: tarjetas, identidad, menú, desaparición y área desplazable. |
+| `extension/saved-content.js` | Ciclo secuencial, espera configurable y descubrimiento de nuevas tarjetas mediante scroll. |
+| `extension/content.js` | Despacho según modo y ciclo por lotes con recarga. |
 | `extension/background.js` | Propiedad de la ejecución por pestaña/documento, persistencia de sesión y recarga normal. |
 | `extension/popup.*` | Apertura, inspección sin cambios, configuración, inicio y detención. |
 | `tests/lifecycle.test.cjs` | Pruebas con reloj y adaptador simulados: secuencia, límites, fallos y cancelación. |
 | `tests/browser.test.cjs` | Extensión instalada en Chromium con HTML simulado y red interceptada. |
+| `tests/saved.test.cjs` | Reloj simulado y protocolo de eliminación individual, pausas, scroll, límites y cancelación. |
+| `tests/saved.browser.test.cjs` | DOM simulado de Guardados, menús, reconstrucción de tarjetas, carga por scroll y panel. |
 
 No hay proceso de compilación ni dependencias de ejecución. El usuario carga directamente `extension/`.
 
@@ -48,11 +52,29 @@ npm run test:browser
 
 En Linux, puede ser necesario usar `npx playwright install --with-deps chromium`. Si ya tienes un Chromium compatible instalado, puedes indicar su ruta con la variable `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`.
 
-La suite carga la extensión sin empaquetar en un perfil temporal. Intercepta todas las solicitudes HTTP y responde a la URL de Facebook con `tests/fixture.cjs`; el resto de solicitudes HTTP se bloquea. No inicia sesión ni elimina datos reales. Comprueba el DOM de los controles, la reinyección tras recarga y los casos de categoría incorrecta, indicador ausente, falta de progreso y alerta de seguridad.
+La suite carga la extensión sin empaquetar en un perfil temporal. Intercepta todas las solicitudes HTTP y responde a la URL de Facebook con `tests/fixture.cjs` o `tests/saved-fixture.cjs`; el resto de solicitudes HTTP se bloquea. No inicia sesión ni elimina datos reales. Comprueba ambos modos, la reinyección tras recarga del modo por lotes y los casos de categoría incorrecta, indicador ausente, falta de progreso y alerta de seguridad.
 
 GitHub Actions ejecuta la comprobación de sintaxis, las pruebas de ciclo y las pruebas de Chromium. Consulta el resultado de la ejecución asociada al commit; tener el archivo del workflow no demuestra que haya pasado.
 
 ## Compatibilidad y decisiones conservadoras
+
+### Guardados: uno por uno
+
+Exige la ruta `/saved/`, origen exacto `https://www.facebook.com`, un área principal única y un título de Guardados reconocido en español o inglés. Rechaza rutas de colecciones y parámetros de colección. No confunde una lista sin tarjetas reconocibles con una cuenta vacía.
+
+Cada tarjeta se ancla a un único botón Agregar a colección y un enlace de contenido. Se abre Más/Más opciones o un único botón con `aria-haspopup="menu"`. También admite el tercer botón sin nombre en un grupo exacto de tres controles cuyo primero sea Agregar a colección. Esa alternativa sólo abre el menú: para eliminar sigue siendo obligatoria una opción exacta dentro de un único menú nuevo, o el menú asociado mediante `aria-controls`. Los nombres admitidos están centralizados en `saved.js`; no se pulsa un Eliminar genérico ni «Eliminar colección».
+
+La identidad es un hash de los enlaces de la tarjeta, normalizados para ignorar parámetros de seguimiento conocidos. Identidades duplicadas bloquean el proceso. No se guardan enlaces ni texto en almacenamiento. Después de cada cambio se consulta otra vez el DOM; no se conserva una lista fija de nodos para hacer clic. La visibilidad de lectura de tarjetas admite un fondo oculto sólo para accesibilidad mientras está abierto el menú, conservando el área ya reconocida en esa URL. Los objetivos del clic deben ser visibles, estar habilitados y superar una comprobación de intercepción.
+
+El ciclo comprueba la autorización por ejecución, pestaña y documento antes de cada acción. `saved-plan` comunica cuántas identidades se han descubierto; sólo puede crecer, sin superar el máximo configurado. `saved-pending` registra el hash de una única tarjeta y exige que haya terminado la pausa. `saved-completed` sólo cuenta el elemento pendiente desde la fase waiting con evidencia explícita. No admite duplicar ese mensaje ni recargar mediante el protocolo del modo por lotes.
+
+Tras Eliminar se espera la ausencia de la identidad, una lista reconocible o vacío explícito, sin carga ni menú o diálogo pendiente y con un segundo de estabilidad. Tiempo máximo: 30 segundos. No se usa la desaparición del spinner por sí sola. Si Facebook presenta una confirmación nueva o conserva una tarjeta sin señales verificables, se detiene sin repetir clics ni hacer recargas de rescate.
+
+La pausa de 1 a 3600 segundos (4 predeterminado) comienza después de verificar cada eliminación y se espera antes de abrir otro menú. La última eliminación no requiere una pausa adicional. Un máximo de 0 permite seguir mientras se encuentren tarjetas. Las identidades ya procesadas se conservan sólo en memoria del documento para no repetirlas si vuelven a renderizarse.
+
+Cuando se agotan las tarjetas reconocidas pendientes, se desplaza el ancestro con desplazamiento vertical o el documento, aproximadamente una pantalla. Se esperan hasta 2.5 segundos por intento, ampliados mientras haya carga visible, con límite de 30 segundos de carga y tres intentos sin nuevas tarjetas. Al agotarse esos intentos se informa que no aparecieron más datos; sólo un mensaje explícito se describe como vista vacía. No se afirma haber consultado todo el servidor. La virtualización, los filtros, los cambios de enlaces o un indicador no reconocido pueden limitar el recorrido y requieren revisión real.
+
+### Registro de actividad
 
 El adaptador exige la ruta `/…/allactivity/` y un título visible exacto **Tus elementos guardados** o **Your saved items**. No usa selectores de clases generadas, coordenadas, APIs internas, credenciales o una lista de IDs de publicaciones.
 
@@ -80,6 +102,8 @@ El estado en `chrome.storage.session` se lee y modifica sólo desde el service w
 
 ## Validación con una cuenta real
 
-Esta versión debe revisarse primero con un máximo de **1 lote**. Comprueba el título, la casilla, el contador, los dos botones Eliminar, la señal accesible de carga, su desaparición y la recarga. Luego verifica el resultado en Guardados. No declares compatibilidad con una versión real de Facebook a partir de la fixture.
+En Guardados, empieza con un máximo de **1 elemento** y 4 segundos. Verifica el título, que se abra el menú de la tarjeta correcta, la opción Eliminar y su desaparición. Después prueba un límite pequeño mayor que las tarjetas inicialmente cargadas para comprobar el scroll y la llegada de nuevas tarjetas. No pruebes con datos reales como parte de CI.
+
+En Registro de actividad, empieza con un máximo de **1 lote**. Comprueba título, casilla, contador, ambos botones Eliminar, fin de carga y recarga. Luego revisa Guardados. No declares compatibilidad con una versión real de Facebook a partir de las fixtures.
 
 Para cambiar selectores, añade un caso de prueba que represente el cambio y conserva las comprobaciones de categoría y confirmación. No añadas técnicas para eludir bloqueos ni registres contenido, cookies, tokens o contraseñas.
