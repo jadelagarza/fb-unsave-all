@@ -1,5 +1,12 @@
 # Cambios
 
+## 1.0.6 — 15 de noviembre de 2026
+
+- Corrige una coincidencia confirmada en el DOM real: dos productos con títulos distintos enlazaban a `https://facebook.com/` y recibían la misma identidad basada sólo en enlaces.
+- Descarta como identidad los enlaces genéricos de inicio y colecciones. Cuando no queda un enlace específico, utiliza un hash del título accesible de la acción o del texto del enlace genérico del producto.
+- No incorpora el precio ni la posición de la tarjeta a ese respaldo. Conserva la detención si tampoco el título distingue los elementos.
+- Añade pruebas de reconstrucción del DOM, títulos indistinguibles y cambios de precio sin eliminación. Actualiza las guías en español e inglés.
+
 ## 1.0.5 — 15 de noviembre de 2026
 
 - Reconoce la etiqueta observada «Más opciones para el elemento guardado», también cuando la tarjeta sólo muestra Agregar a colección y los tres puntos.

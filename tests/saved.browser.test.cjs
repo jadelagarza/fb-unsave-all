@@ -50,6 +50,62 @@ async function setup(t, fixtureOptions = {}, url = 'https://www.facebook.com/sav
 }
 
 describe('Saved page extension fixtures', { concurrency: 3 }, () => {
+  test('different saved products sharing a generic Facebook link remain distinct through rerenders', { timeout: 20000 }, async (t) => {
+    const h = await setup(t, {
+      realControls: true,
+      nestedMain: true,
+      genericLinkIds: [1, 2],
+      savedItemMenuIds: [2],
+      twoButtonIds: [1, 2],
+      changingPrice: true
+    });
+    const inspection = await h.request('inspect');
+    assert.equal(inspection.ok, true, inspection.error);
+    assert.equal(inspection.inspection.loaded, 3);
+    assert.equal(inspection.inspection.ready, true);
+    assert.equal((await h.start({ maxItems: 3 })).ok, true);
+    assert.equal((await h.untilStatus('finished', 15000)).processed, 3);
+    const events = await h.events();
+    assert.deepEqual(
+      events.filter((event) => event.type === 'delete').map((event) => event.id),
+      [1, 2, 3]
+    );
+    assert.equal(events.filter((event) => event.type === 'wrong-action').length, 0);
+  });
+
+  test('generic links with indistinguishable titles remain blocked before opening menus', { timeout: 10000 }, async (t) => {
+    const h = await setup(t, {
+      realControls: true,
+      genericLinkIds: [1, 2],
+      savedItemMenuIds: [1, 2],
+      twoButtonIds: [1, 2],
+      identicalGenericTitles: true
+    });
+    const result = await h.start();
+    assert.equal(result.ok, false);
+    assert.match(result.error, /identidades ambiguas/);
+    assert.equal(
+      (await h.events()).filter((event) => ['open', 'delete'].includes(event.type)).length,
+      0
+    );
+  });
+
+  test('a price update alone cannot confirm removal of a generic-link product', { timeout: 40000 }, async (t) => {
+    const h = await setup(t, {
+      realControls: true,
+      genericLinkIds: [1, 2],
+      savedItemMenuIds: [1, 2],
+      twoButtonIds: [1, 2],
+      changingPrice: true,
+      noProgress: true
+    });
+    assert.equal((await h.start()).ok, true);
+    const run = await h.untilStatus('blocked', 35000);
+    assert.equal(run.processed, 0);
+    assert.match(run.message, /No se pudo verificar la eliminación/);
+    assert.equal((await h.events()).filter((event) => event.type === 'delete').length, 1);
+  });
+
   test('mixed cards with two or three buttons recognize the saved-item More label and process every card', { timeout: 20000 }, async (t) => {
     const h = await setup(t, {
       realControls: true,

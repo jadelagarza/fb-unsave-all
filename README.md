@@ -2,7 +2,7 @@
 
 Extensión local de Google Chrome para quitar los elementos guardados de tu cuenta de Facebook mediante sus controles visibles.
 
-**Versión 1.0.5.** Permite eliminar uno por uno desde [Guardados](https://www.facebook.com/saved/), con espera configurable, cuenta regresiva y desplazamiento automático. Admite tarjetas con o sin Compartir, incluida la variante de dos botones cuyo menú se llama «Más opciones para el elemento guardado». Reconoce nombres accesibles como «Agregar a la colección, [título]» y «Más, [título]», y distingue la carga de más tarjetas al pie de la lista de una carga que bloquea los controles. Conserva la limpieza por lotes del Registro de actividad y muestra el resultado o error de la comprobación junto al botón.
+**Versión 1.0.6.** Permite eliminar uno por uno desde [Guardados](https://www.facebook.com/saved/), con espera configurable, cuenta regresiva y desplazamiento automático. Distingue títulos cuando Facebook asigna el mismo enlace genérico a productos distintos. Admite tarjetas con o sin Compartir, incluida la variante de dos botones cuyo menú se llama «Más opciones para el elemento guardado». Conserva la limpieza por lotes del Registro de actividad y muestra el resultado o error de la comprobación junto al botón.
 
 [English guide](docs/README.en.md) · [Desarrollo y pruebas](docs/DEVELOPMENT.md) · [Historial de cambios](CHANGELOG.md)
 
@@ -45,7 +45,7 @@ Mantén la carpeta en el mismo lugar mientras esté instalada. Este proyecto no 
 
 1. Detén cualquier ejecución activa.
 2. Descarga la versión actual o ejecuta `git pull` en tu clon.
-3. En `chrome://extensions`, pulsa **Recargar** en FB Unsave All y comprueba la versión **1.0.5**, también visible en la cabecera del panel.
+3. En `chrome://extensions`, pulsa **Recargar** en FB Unsave All y comprueba la versión **1.0.6**, también visible en la cabecera del panel.
 4. Recarga Facebook una vez. Esta recarga es necesaria para reemplazar el script anterior.
 5. Abre de nuevo el panel y selecciona el modo deseado. El modo predeterminado ahora es **Guardados: uno por uno**.
 
@@ -69,7 +69,7 @@ Mantén la carpeta en el mismo lugar mientras esté instalada. Este proyecto no 
 
 Cada ciclo hace lo siguiente:
 
-1. Reconoce una tarjeta por sus controles y enlaces; vuelve a consultar el DOM para tolerar que Facebook lo reconstruya.
+1. Reconoce una tarjeta por sus controles y enlaces; si sólo tiene enlaces genéricos a Facebook, usa el título como respaldo. Vuelve a consultar el DOM para tolerar que Facebook lo reconstruya.
 2. Desplaza la tarjeta a la vista si hace falta y abre **sus tres puntos**, sin pulsar Compartir ni Agregar a colección.
 3. Busca **Eliminar** dentro del menú recién abierto. También reconoce las variantes exactas documentadas en el adaptador para español e inglés. Nunca busca un Eliminar genérico por toda la página.
 4. Pulsa esa opción una sola vez y comprueba que la tarjeta ya no esté en la lista, sin carga ni diálogo pendientes, durante un segundo estable. Si no puede verificarlo, se detiene sin reintentar ni recargar.
@@ -111,6 +111,7 @@ Si Facebook deja de mostrar elementos anteriores a cierta fecha en el Registro d
 | «Se esperaba un único área principal… se encontraron 2» | Actualiza a 1.0.3 y recarga la extensión y Facebook. Se identifica el área que contiene las tarjetas, con sus controles y enlaces, aunque haya otra área principal o contenedores anidados. |
 | «No se pudo identificar el área» aunque las tarjetas están cargadas | Actualiza a 1.0.3. Los nombres accesibles reales pueden incluir el título después de «Agregar a la colección» o «Más»; antes se comparaba el nombre completo con un texto corto y se descartaban esas tarjetas. |
 | «No se pudo aislar el menú de tres puntos» y hay tarjetas sin Compartir | Actualiza a 1.0.5 y recarga la extensión y Facebook. Reconoce «Más opciones para el elemento guardado» en grupos de dos controles. Si el segundo botón no tiene una acción reconocible, se mantiene la detención. |
+| «Hay tarjetas con identidades ambiguas» | Actualiza a 1.0.6. Algunos productos distintos apuntan a la misma página de inicio de Facebook; ahora se usa el título como respaldo. Si tampoco el título permite distinguirlos, la extensión se detiene y requiere revisión manual. |
 | «Áreas independientes» o «tarjetas fuera del área identificada» | Hay más de una lista reconocible y no se puede escoger una con certeza. La ejecución se detiene antes de abrir menús. Revisa la vista y reporta el mensaje exacto. |
 | No se reconoce una tarjeta o su menú | Comprueba que estés en la vista general de Guardados, en español o inglés, con tarjetas cargadas y los tres botones indicados. Guarda el mensaje exacto para reportarlo. |
 | Eliminar no aparece en el menú | La extensión se detiene. No se pulsa otra opción parecida ni un botón de otra parte de la página. |

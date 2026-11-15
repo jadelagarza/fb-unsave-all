@@ -120,17 +120,49 @@
     }
     throw new Error("No se pudo aislar el menú de tres puntos de una tarjeta. No se hará clic.");
   }
-  function identity(card, group) {
-    const links = cardElements(card, 'a[href]').filter((el) => !group.contains(el)).map((el) => {
-      const url = new URL(el.getAttribute("href"), location.href);
-      if (!/^https?:$/.test(url.protocol)) return null;
-      for (const key of [...url.searchParams.keys()]) if (/^(?:__|fbclid|ref$|refsrc$|mibextid$)/.test(key)) url.searchParams.delete(key);
-      url.hash = "";
-      url.searchParams.sort();
-      return url.href;
-    }).filter(Boolean);
-    if (!links.length) throw new Error("Una tarjeta no tiene un enlace reconocible para verificar su eliminación.");
-    return hash([...new Set(links)].sort().join("|"));
+  function identity(card, group, add) {
+    const entries = cardElements(card, 'a[href]')
+      .filter((element) => !group.contains(element))
+      .map((element) => {
+        const url = new URL(element.getAttribute("href"), location.href);
+        if (!/^https?:$/.test(url.protocol)) return null;
+
+        for (const key of [...url.searchParams.keys()]) {
+          if (/^(?:__|fbclid|ref$|refsrc$|mibextid$)/.test(key)) {
+            url.searchParams.delete(key);
+          }
+        }
+        url.hash = "";
+        url.searchParams.sort();
+
+        const facebook = /(^|\.)facebook\.com$/.test(url.hostname);
+        const home = facebook && url.pathname === "/" && !url.search;
+        const collection = facebook && /^\/saved\/?$/.test(url.pathname);
+        return { element, url: url.href, home, generic: home || collection };
+      })
+      .filter(Boolean);
+
+    const links = entries.filter((entry) => !entry.generic).map((entry) => entry.url);
+    if (links.length) {
+      return hash([...new Set(links)].sort().join("|"));
+    }
+
+    // Facebook sometimes links distinct saved products to its home page.
+    // Use the item title, not a collection name, price, or position in the list.
+    const label = name(add);
+    const comma = label.indexOf(",");
+    const contextTitle = comma >= 0 ? label.slice(comma + 1).trim() : "";
+    const titles = contextTitle
+      ? [contextTitle]
+      : entries
+          .filter((entry) => entry.home)
+          .map((entry) => normalize(entry.element.innerText || ""))
+          .filter(Boolean);
+
+    if (!titles.length) {
+      throw new Error("La tarjeta no ofrece un enlace propio ni un título identificable. Revisa el elemento manualmente.");
+    }
+    return hash(`title:${JSON.stringify([...new Set(titles)].sort())}`);
   }
   function readCard(add, scope) {
     const { group, more } = actionGroup(add, scope);
@@ -140,7 +172,7 @@
     while (card && card !== scope) {
       if (collectionControls(card).length !== 1) break;
       if (cardElements(card, 'a[href]').some((el) => !group.contains(el))) {
-        return { element: card, more, key: identity(card, group) };
+        return { element: card, more, key: identity(card, group, add) };
       }
       card = card.parentElement;
     }

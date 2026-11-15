@@ -11,6 +11,7 @@ module.exports = function fixture(options = {}) {
   let ids=Array.from({length:options.initial??3},(_,i)=>i+1);
   let queued=options.moreOnScroll?[4,5]:[];
   let deleted=0;
+  let renderCount=0;
   let loading=false;
   window.events=[];
   const record=(type,id)=>events.push({type,id,at:Date.now()});
@@ -42,6 +43,7 @@ module.exports = function fixture(options = {}) {
     document.documentElement.style.overflow='hidden';
   }
   function render(){
+    renderCount++;
     feed.innerHTML=ids.map(id=>{
       const title='Demo '+id+', compartir y share';
       const open=options.realControls?'<div role="button" tabindex="0"':'<button';
@@ -64,7 +66,13 @@ module.exports = function fixture(options = {}) {
         shareButton+
         open+' data-more="'+id+'" '+(options.unlabelled?'':'aria-label="'+moreLabel+'" aria-haspopup="'+popup+'"')+'><svg aria-hidden="true"><circle cx="3" cy="10" r="2"/><circle cx="10" cy="10" r="2"/><circle cx="17" cy="10" r="2"/></svg>'+close+'</div>';
       const nested=options.realControls?'<div><div><div><div>'+actions+'</div></div></div></div>':actions;
-      return '<article><a href="/posts/saved-'+id+'">Saved item '+id+'</a>'+nested+'</article>';
+      const genericLink = (options.genericLinkIds || []).includes(id);
+      const titleHref = genericLink ? 'https://facebook.com/' : '/posts/saved-' + id;
+      const titleText = genericLink && options.identicalGenericTitles ? 'Saved product' : 'Saved item ' + id;
+      const price = options.changingPrice
+        ? '<p data-price>Price: ' + (100 + renderCount) + '</p>'
+        : '';
+      return '<article><a href="' + titleHref + '">' + titleText + '</a>' + price + nested + '</article>';
     }).join('');
     if(footer)footer.hidden=ids.length===0&&queued.length===0&&!loading;
     document.getElementById('empty').hidden=ids.length>0||loading||(footer&&queued.length>0);
