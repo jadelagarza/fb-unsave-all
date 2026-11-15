@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>FB Unsave All</title>
+  <link rel="stylesheet" href="popup.css">
+  <script src="popup.js" defer></script>
+</head>
+<body>
+  <header><small>LIMPIEZA DE GUARDADOS</small><h1>FB Unsave All</h1></header>
+  <p>Vacía tus guardados por lotes desde el Registro de actividad de Facebook.</p>
+  <button id="open" class="secondary">1. Abrir mis elementos guardados</button>
+  <button id="inspect" class="secondary">2. Comprobar esta página</button>
+  <p id="inspection" role="status">Abre Facebook e inicia sesión por tu cuenta.</p>
+  <form id="form">
+    <div class="fields">
+      <label>Máximo de lotes<input id="batches" type="number" min="1" max="500" value="1" required></label>
+      <label>Pausa entre lotes (s)<input id="delay" type="number" min="3" max="3600" value="10" required></label>
+    </div>
+    <p class="hint">Empieza con 1 lote y revisa el resultado. Para unos 1,500 guardados en lotes de 20, necesitarías cerca de 75 lotes.</p>
+    <label class="ack"><input id="ack" type="checkbox" required><span>Entiendo que se quitarán los guardados seleccionados y que una eliminación confirmada no se puede cancelar.</span></label>
+    <button id="start" type="submit">3. Iniciar limpieza</button>
+  </form>
+  <button id="stop" class="danger" disabled>Detener ejecución</button>
+  <section aria-label="Progreso" aria-live="polite">
+    <strong id="status">Sin ejecución</strong>
+    <p id="message">La extensión no actúa hasta que pulses Iniciar.</p>
+    <div class="metrics"><span><b id="completed">0</b> lotes procesados</span><span><b id="processed">0</b> elementos procesados*</span></div>
+    <small>*Según el contador seleccionado y la finalización de la carga. Comprueba el resultado en Guardados.</small>
+  </section>
+  <p id="error" role="alert"></p>
+  <footer>Uso local y supervisado. Las pausas no garantizan evitar restricciones de Facebook. Cerrar este panel no detiene la ejecución.</footer>
+</body>
+</html>
