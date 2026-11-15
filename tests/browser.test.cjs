@@ -1,4 +1,4 @@
-const { test } = require('node:test');
+const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { chromium } = require('playwright');
@@ -51,6 +51,7 @@ async function setup(t, mode = 'normal', fixtureOptions = {}) {
   };
 }
 
+describe('isolated Chrome extension fixtures', { concurrency: 3 }, () => {
 test('installed extension processes two real DOM batches and reloads only after loading ends', { timeout: 45000 }, async (t) => {
   const h = await setup(t);
   const inspection = await h.request('inspect');
@@ -328,4 +329,6 @@ test('installed extension never reloads while the global deletion overlay remain
   assert.equal((await h.events()).filter(event => event.event === 'page-load').length, 1);
   assert.equal((await h.request('status')).run.status, 'running');
   await h.request('stop');
+});
+
 });

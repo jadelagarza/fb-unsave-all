@@ -112,7 +112,7 @@
     if (x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) return { ready: false, blocked: false, blocker: null };
     const hit = document.elementFromPoint(x, y);
     const label = checkbox.closest("label");
-    const intercepted = Boolean(hit && hit !== checkbox && !checkbox.contains(hit) && !(label && label.contains(hit)));
+    const intercepted = Boolean(hit && visuallyVisible(hit) && hit !== checkbox && !checkbox.contains(hit) && !(label && label.contains(hit)));
     const disabled = checkbox.disabled || checkbox.getAttribute("aria-disabled") === "true" || Boolean(checkbox.closest("[inert]"));
     return { ready: Boolean(hit) && !intercepted && !disabled, blocked: intercepted || disabled, blocker: intercepted ? hit : null };
   }
