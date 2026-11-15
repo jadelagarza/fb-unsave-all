@@ -15,6 +15,24 @@ function extensionSender(sender) {
 function validTabUrl(url) {
   try { return new URL(url).origin === "https://www.facebook.com"; } catch { return false; }
 }
+async function inspectTab(tabId, mode) {
+  let timer;
+  let timedOut = false;
+  try {
+    return await Promise.race([
+      chrome.tabs.sendMessage(tabId, { app: "fb-unsave-all", type: "inspect", mode }, { frameId: 0 }),
+      new Promise((_resolve, reject) => {
+        timer = setTimeout(() => {
+          timedOut = true;
+          reject(new Error("Facebook no respondió a la comprobación en 8 segundos. Espera a que termine de cargar y vuelve a comprobar; si persiste, recarga la extensión y Facebook."));
+        }, 8000);
+      })
+    ]);
+  } catch (error) {
+    if (timedOut) throw error;
+    throw new Error("Recarga Facebook una vez para activar la extensión recién instalada o actualizada.");
+  } finally { clearTimeout(timer); }
+}
 async function requireOwner(sender, id) {
   const run = await read();
   if (!run || run.status !== "running" || run.id !== id || run.tabId !== sender.tab?.id ||
@@ -41,10 +59,10 @@ async function handle(message, sender) {
     const mode = modeOf(message);
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab || !validTabUrl(tab.url)) throw new Error("Abre la pestaña de Facebook que vas a limpiar.");
-    let result;
-    try { result = await chrome.tabs.sendMessage(tab.id, { app: "fb-unsave-all", type: "inspect", mode }, { frameId: 0 }); }
-    catch { throw new Error("Recarga Facebook una vez para activar la extensión recién instalada."); }
+    const result = await inspectTab(tab.id, mode);
     if (!result?.ok) throw new Error(result?.error || "No se pudo comprobar la página.");
+    if (!result.inspection || typeof result.inspection.ready !== "boolean") throw new Error("La página devolvió una respuesta incompatible. Recarga la extensión y después Facebook.");
+    if (mode === "saved" && result.inspection.mode !== "saved") throw new Error("Facebook conserva un script anterior. Recarga la extensión en chrome://extensions y después Facebook para activar el modo Guardados.");
     if (message.type === "inspect") return { inspection: result.inspection };
     if ((await read())?.status === "running") throw new Error("Ya hay una ejecución activa; deténla primero.");
     if (message.acknowledged !== true) throw new Error("Debes confirmar que quieres quitar los guardados.");
@@ -55,7 +73,6 @@ async function handle(message, sender) {
     if (mode === "saved" && (!Number.isInteger(maxItems) || maxItems < 0 || maxItems > 100000)) throw new Error("El límite debe ser 0 (todos los cargados) o entre 1 y 100000 elementos.");
     const minimum = mode === "saved" ? 1 : 3;
     if (!Number.isInteger(delaySeconds) || delaySeconds < minimum || delaySeconds > 3600) throw new Error(`La pausa debe estar entre ${minimum} y 3600 segundos.`);
-    if (mode === "saved" && result.inspection.mode !== "saved") throw new Error("La página no corresponde al modo Guardados.");
     if (!result.inspection.ready || result.inspection.empty) throw new Error("La lista no está lista o ya está vacía.");
     const run = await write({
       id: crypto.randomUUID(), tabId: tab.id, documentId: null, status: "running", phase: "starting",

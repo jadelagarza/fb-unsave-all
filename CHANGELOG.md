@@ -1,5 +1,13 @@
 # Cambios
 
+## 1.0.1 — 15 de noviembre de 2026
+
+- Muestra Comprobando inmediatamente al pulsar Comprobar esta página y coloca el resultado o error concreto junto al botón. Antes, los errores quedaban al final del panel y podían quedar fuera de vista.
+- Evita clics duplicados y consultas periódicas de estado mientras se comprueba la página.
+- Limita la espera de inspección de Facebook a 8 segundos y evita que una página sin respuesta bloquee todos los mensajes posteriores del panel. Una respuesta tardía no puede iniciar una eliminación tras un fallo de comprobación.
+- Detecta respuestas incompatibles de scripts anteriores y muestra cómo recargar la extensión y Facebook.
+- Muestra la versión instalada en la cabecera y añade pruebas del botón, errores visibles, tiempos de espera y recuperación.
+
 ## 1.0.0 — 15 de noviembre de 2026
 
 - Añade el modo predeterminado **Guardados: uno por uno** en `/saved/`, con los tres puntos y la opción Eliminar del menú de cada tarjeta.

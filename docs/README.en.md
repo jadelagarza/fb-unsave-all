@@ -2,7 +2,7 @@
 
 [Español](../README.md) · [Development and verification](DEVELOPMENT.md) · [Changelog](../CHANGELOG.md)
 
-**Version 1.0.0** adds one-at-a-time removal on [Facebook Saved](https://www.facebook.com/saved/), with automatic scrolling and a configurable delay. Activity Log batches remain available. The popup is in Spanish; the adapters recognize the documented Spanish and English controls.
+**Version 1.0.1** supports one-at-a-time removal on [Facebook Saved](https://www.facebook.com/saved/), with automatic scrolling and a configurable delay. Activity Log batches remain available. Page checks now show progress and their result or error beside the button. The popup is in Spanish; the adapters recognize the documented Spanish and English controls.
 
 This removes references from your saved list, not the original posts. The extension cannot restore removed saves. Delays do not guarantee protection from Facebook restrictions. Automated tests use simulated pages; test the new mode with **one item** on your account before running a larger cleanup.
 
@@ -20,7 +20,7 @@ This removes references from your saved list, not the original posts. The extens
 5. Open **FB Unsave All** from Chrome's extensions menu.
 6. Reload an already-open Facebook tab once to activate the content script.
 
-To update, stop any active run, download the current files or run `git pull`, then click **Reload** on the extension in `chrome://extensions`. Verify version **1.0.0** and reload Facebook once. Keep the extracted directory in place. No Node.js or npm packages are required for end users. This project has no official Chrome Web Store listing.
+To update, stop any active run, download the current files or run `git pull`, then click **Reload** on the extension in `chrome://extensions`. Verify version **1.0.1**, also shown in the popup header, and reload Facebook once. Keep the extracted directory in place. No Node.js or npm packages are required for end users. This project has no official Chrome Web Store listing.
 
 ## Saved: one item at a time
 
@@ -28,7 +28,7 @@ To update, stop any active run, download the current files or run `git pull`, th
 2. Choose **Guardados: uno por uno** (the new default) in the popup.
 3. Click **1. Abrir mis elementos guardados**, or open [facebook.com/saved/](https://www.facebook.com/saved/). Use the general saved-items view outside any collection. Start at the top to traverse from the beginning.
 4. Wait for cards to appear and close menus or dialogs. You may have already scrolled to load cards; the extension can also scroll as needed.
-5. Click **2. Comprobar esta página**. The reported card count is the currently recognized set, not your account's total saved items.
+5. Click **2. Comprobar esta página**. **Comprobando…** appears immediately, followed by the result or exact error below the button. The reported card count is the currently recognized set, not your account's total saved items. Checking does not remove anything.
 6. For the first test, set **Máximo de elementos** to **1** and **Espera entre elementos (s)** to **4**.
 7. Tick the acknowledgment checkbox and click **3. Iniciar limpieza**. Acknowledgment is required once per run, in both modes.
 8. Check the result. For another run, set a larger maximum or **0** to continue while more cards can be found.
@@ -66,6 +66,7 @@ If Activity Log omits older saves, use **Guardados: uno por uno**. The extension
 - If a run ends while saves remain, check filters, collections, virtualization and Facebook's loading behavior manually. Another traversal from the top may be necessary.
 - Resolve CAPTCHA, identity checks, errors and restrictions yourself. The extension does not bypass them.
 - After changing files, reload both the extension and Facebook.
+- If Check appears unresponsive, update to 1.0.1 and read the inline result. An unanswered page check now times out instead of leaving the panel waiting indefinitely; it never starts removal by itself.
 
 When reporting an issue, include the extension and Chrome versions, language, mode and exact message. Redact private information. Never provide passwords, cookies, tokens or session files.
 

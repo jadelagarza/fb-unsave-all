@@ -9,6 +9,7 @@ class Clock {
   now = 1;
   timers = [];
   setTimeout = (fn, ms = 0) => { const timer = { at: this.now + ms, fn }; this.timers.push(timer); return timer; };
+  clearTimeout = (timer) => { this.timers = this.timers.filter((item) => item !== timer); };
   async flush() { await new Promise((resolve) => setImmediate(resolve)); }
   async until(predicate, maxTime = 140000) {
     await this.flush();
@@ -39,7 +40,7 @@ function backgroundHarness(clock = new Clock()) {
   const navigations = [];
   const sender = { id: 'fixture-extension', url: 'chrome-extension://fixture/popup.html' };
   const context = vm.createContext({
-    console, URL, crypto: { randomUUID }, Date: clock.Date,
+    console, URL, crypto: { randomUUID }, Date: clock.Date, setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout,
     chrome: {
       storage: { session: { get: async () => ({ run }), set: async (value) => { run = value.run; } } },
       runtime: { id: 'fixture-extension', getURL: (suffix) => `chrome-extension://fixture/${suffix}`, onMessage: { addListener: (fn) => { listener = fn; } } },

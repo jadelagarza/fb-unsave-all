@@ -2,7 +2,7 @@
 
 Extensión local de Google Chrome para quitar los elementos guardados de tu cuenta de Facebook mediante sus controles visibles.
 
-**Versión 1.0.0.** Añade la eliminación uno por uno desde [Guardados](https://www.facebook.com/saved/), con espera configurable y desplazamiento automático. Conserva la limpieza por lotes del Registro de actividad.
+**Versión 1.0.1.** Permite eliminar uno por uno desde [Guardados](https://www.facebook.com/saved/), con espera configurable y desplazamiento automático. Conserva la limpieza por lotes del Registro de actividad y muestra el resultado o error de la comprobación junto al botón.
 
 [English guide](docs/README.en.md) · [Desarrollo y pruebas](docs/DEVELOPMENT.md) · [Historial de cambios](CHANGELOG.md)
 
@@ -45,7 +45,7 @@ Mantén la carpeta en el mismo lugar mientras esté instalada. Este proyecto no 
 
 1. Detén cualquier ejecución activa.
 2. Descarga la versión actual o ejecuta `git pull` en tu clon.
-3. En `chrome://extensions`, pulsa **Recargar** en FB Unsave All y comprueba la versión **1.0.0**.
+3. En `chrome://extensions`, pulsa **Recargar** en FB Unsave All y comprueba la versión **1.0.1**, también visible en la cabecera del panel.
 4. Recarga Facebook una vez. Esta recarga es necesaria para reemplazar el script anterior.
 5. Abre de nuevo el panel y selecciona el modo deseado. El modo predeterminado ahora es **Guardados: uno por uno**.
 
@@ -55,7 +55,7 @@ Mantén la carpeta en el mismo lugar mientras esté instalada. Este proyecto no 
 2. Selecciona **Guardados: uno por uno** en el panel.
 3. Pulsa **1. Abrir mis elementos guardados**, o entra en [facebook.com/saved/](https://www.facebook.com/saved/). Abre la vista general de todos los guardados, fuera de una colección. Para recorrer la lista desde el principio, empieza arriba.
 4. Espera a que aparezcan tarjetas. Puedes haber deslizado para cargar varias; también se cargarán más conforme haga falta. Deja cerrados los menús y diálogos de Facebook.
-5. Pulsa **2. Comprobar esta página**. El panel indicará cuántas tarjetas reconoce; esta cantidad **no es el total de guardados de la cuenta**.
+5. Pulsa **2. Comprobar esta página**. Verás **Comprobando…** inmediatamente y después el resultado o error debajo del botón. Si todo está listo, indicará cuántas tarjetas reconoce; esta cantidad **no es el total de guardados de la cuenta**. Comprobar no elimina elementos.
 6. Para la primera prueba, configura **Máximo de elementos: 1** y **Espera entre elementos: 4**.
 7. Marca la casilla de aceptación y pulsa **3. Iniciar limpieza**. La casilla es obligatoria en ambos modos; no necesitas volver a marcarla para cada elemento de esa ejecución.
 8. Comprueba que se quitó el elemento esperado. Después puedes iniciar otra ejecución con un límite mayor o con **0** para continuar mientras se encuentren tarjetas.
@@ -105,6 +105,7 @@ Si Facebook deja de mostrar elementos anteriores a cierta fecha en el Registro d
 
 | Síntoma | Qué hacer |
 | --- | --- |
+| Pulsas Comprobar y parece que no ocurre nada | Actualiza a 1.0.1, recarga la extensión y después Facebook. Ahora muestra Comprobando y después el resultado o error junto al botón. Si la página no responde, informa el tiempo de espera agotado; no comienza a eliminar. |
 | No se reconoce una tarjeta o su menú | Comprueba que estés en la vista general de Guardados, en español o inglés, con tarjetas cargadas y los tres botones indicados. Guarda el mensaje exacto para reportarlo. |
 | Eliminar no aparece en el menú | La extensión se detiene. No se pulsa otra opción parecida ni un botón de otra parte de la página. |
 | Se quitó una tarjeta pero no avanza el contador | No pudo verificar su desaparición con la interfaz disponible. Revisa manualmente, detén la ejecución y vuelve a comprobar la página. No se repite la eliminación automáticamente. |

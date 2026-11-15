@@ -3,6 +3,7 @@
 body { width: 380px; margin: 0; padding: 22px; }
 header small { font-size: 10px; letter-spacing: .13em; font-weight: 750; color: #566b85; }
 h1 { margin: 5px 0 12px; font-size: 26px; letter-spacing: -.04em; }
+#version { font-size: 11px; letter-spacing: normal; color: #526174; }
 p { line-height: 1.5; }
 button { display: block; width: 100%; padding: 11px 12px; border: 1px solid transparent; border-radius: 7px; background: #174da5; color: white; font: inherit; font-weight: 650; cursor: pointer; margin: 9px 0; }
 button.secondary { background: white; color: #174da5; border-color: #cad5e4; }
@@ -22,5 +23,8 @@ section p { margin: 7px 0; font-size: 12px; }
 .metrics { display: flex; gap: 16px; margin: 12px 0; font-size: 11px; }
 .metrics b { display: block; font-size: 23px; }
 #inspection { color: #526174; font-size: 12px; }
+#inspection[data-state="pending"] { color: #174da5; font-weight: 650; }
+#inspection[data-state="ready"] { color: #17623b; }
+#inspection[data-state="error"] { color: #a31d2d; }
 #error { color: #a31d2d; font-size: 12px; overflow-wrap: anywhere; }
 footer { margin-top: 16px; }

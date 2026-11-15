@@ -8,12 +8,13 @@
   <script src="popup.js" defer></script>
 </head>
 <body>
-  <header><small>LIMPIEZA DE GUARDADOS</small><h1>FB Unsave All</h1></header>
+  <header><small>LIMPIEZA DE GUARDADOS</small><h1>FB Unsave All <span id="version"></span></h1></header>
   <p>Quita guardados con los controles visibles de Facebook.</p>
   <label>Modo de limpieza<select id="mode"><option value="saved" selected>Guardados: uno por uno</option><option value="activity">Registro de actividad: lotes</option></select></label>
   <button id="open" class="secondary">1. Abrir mis elementos guardados</button>
   <button id="inspect" class="secondary">2. Comprobar esta página</button>
   <p id="inspection" role="status">Abre Facebook e inicia sesión por tu cuenta.</p>
+  <p id="error" role="alert"></p>
   <form id="form">
     <div class="fields" id="saved-fields">
       <label>Máximo de elementos<input id="items" type="number" min="0" max="100000" value="0" required></label>
@@ -35,7 +36,6 @@
     <div class="metrics"><span id="batch-metric" hidden><b id="completed">0</b> lotes procesados</span><span><b id="processed">0</b> elementos procesados*</span></div>
     <small id="counter-hint">*Se contabilizan cuando se comprueba que la tarjeta desapareció. Comprueba también el resultado en Guardados.</small>
   </section>
-  <p id="error" role="alert"></p>
   <footer>Uso local y supervisado. Las pausas no garantizan evitar restricciones de Facebook. Cerrar este panel no detiene la ejecución.</footer>
 </body>
 </html>

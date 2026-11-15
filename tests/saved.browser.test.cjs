@@ -50,6 +50,30 @@ async function setup(t, fixtureOptions = {}, url = 'https://www.facebook.com/sav
 }
 
 describe('Saved page extension fixtures', { concurrency: 3 }, () => {
+  test('the actual Inspect button shows immediate progress and its result without deleting', { timeout: 10000 }, async (t) => {
+    const h = await setup(t);
+    const pending = await h.controller.evaluate(() => {
+      document.getElementById('inspect').click();
+      return { state: document.getElementById('inspection').dataset.state, disabled: document.getElementById('inspect').disabled };
+    });
+    assert.deepEqual(pending, { state: 'pending', disabled: true });
+    await h.controller.waitForFunction(() => document.getElementById('inspection').dataset.state === 'ready');
+    assert.match(await h.controller.locator('#inspection').innerText(), /3 tarjetas reconocidas/);
+    assert.equal(await h.controller.locator('#inspect').isEnabled(), true);
+    assert.equal((await h.events()).filter((e) => e.type === 'delete').length, 0);
+  });
+
+  test('a rejected page displays the exact inspection error beside the button in a popup-sized viewport', { timeout: 10000 }, async (t) => {
+    const h = await setup(t, {}, 'https://www.facebook.com/saved/?collection_id=123');
+    await h.controller.setViewportSize({ width: 380, height: 600 });
+    await h.controller.evaluate(() => document.getElementById('inspect').click());
+    await h.controller.waitForFunction(() => document.getElementById('inspection').dataset.state === 'error');
+    assert.match(await h.controller.locator('#inspection').innerText(), /No se pudo comprobar.*colección/);
+    const bounds = await h.controller.locator('#inspection').boundingBox();
+    assert.ok(bounds.y >= 0 && bounds.y + bounds.height <= 600);
+    assert.equal(await h.controller.locator('#inspect').isEnabled(), true);
+    assert.equal((await h.events()).filter((e) => e.type === 'delete').length, 0);
+  });
   test('busy state on the main container prevents starting a deletion', { timeout: 10000 }, async (t) => {
     const h = await setup(t, { rootBusy: true });
     const inspection = (await h.request('inspect')).inspection;

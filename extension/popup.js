@@ -1,6 +1,9 @@
 "use strict";
 const $ = (id) => document.getElementById(id);
 let restored = false;
+let inspecting = false;
+let refreshing = false;
+let currentRun = null;
 function renderMode() {
   const saved = $("mode").value === "saved";
   $("saved-fields").hidden = $("saved-hint").hidden = !saved;
@@ -11,17 +14,45 @@ function renderMode() {
     "Abre Tus elementos guardados dentro del Registro de actividad.";
 }
 async function request(type, fields = {}) {
-  const response = await chrome.runtime.sendMessage({ app: "fb-unsave-all", type, ...fields });
-  if (!response?.ok) throw new Error(response?.error || "La extensión no respondió.");
-  return response;
+  let timer;
+  try {
+    const responsePromise = chrome.runtime.sendMessage({ app: "fb-unsave-all", type, ...fields });
+    // Read-only requests may time out safely. Do not silently abandon a Start or Stop.
+    const timeout = type === "inspect" ? 10000 : type === "status" ? 3000 : 0;
+    const response = timeout ? await Promise.race([responsePromise, new Promise((_resolve, reject) => {
+      timer = setTimeout(() => reject(new Error("La extensión no respondió. Recarga la extensión en chrome://extensions y después la pestaña de Facebook.")), timeout);
+    })]) : await responsePromise;
+    if (!response?.ok) throw new Error(response?.error || "La extensión no respondió.");
+    return response;
+  } finally { clearTimeout(timer); }
+}
+function showError(error, scroll = false) {
+  $("error").textContent = error.message;
+  if (scroll) $("error").scrollIntoView({ block: "nearest" });
+}
+function renderControls() {
+  const running = currentRun?.status === "running";
+  const busy = running || inspecting;
+  for (const id of ["start", "open", "mode", "inspect"]) $(id).disabled = busy;
+  $("stop").disabled = !running;
+  $("inspect").textContent = inspecting ? "Comprobando…" : "2. Comprobar esta página";
+  $("inspection").setAttribute("aria-busy", String(inspecting));
+  for (const id of ["items", "item-delay", "batches", "delay", "ack"]) {
+    $(id).disabled = busy || (["items", "item-delay"].includes(id) ? $("mode").value !== "saved" :
+      ["batches", "delay"].includes(id) ? $("mode").value !== "activity" : false);
+  }
 }
 async function action(fn) {
   $("error").textContent = "";
   try { await fn(); await refresh(); }
-  catch (error) { $("error").textContent = error.message; }
+  catch (error) { showError(error, true); }
 }
 async function refresh() {
+  if (inspecting || refreshing) return;
+  refreshing = true;
+  try {
   const { run } = await request("status");
+  currentRun = run;
   const labels = { running: "En ejecución", stopped: "Detenido", blocked: "Requiere revisión", finished: "Finalizado" };
   const running = run?.status === "running";
   if (!restored && running) {
@@ -35,29 +66,38 @@ async function refresh() {
   $("message").textContent = run?.message || "La extensión no actúa hasta que pulses Iniciar.";
   $("completed").textContent = String(run?.batches || 0);
   $("processed").textContent = String(run?.processed || 0);
-  $("start").disabled = running;
-  $("open").disabled = running;
-  $("stop").disabled = !running;
-  $("mode").disabled = running;
-  $("inspect").disabled = running;
-  for (const id of ["items", "item-delay", "batches", "delay", "ack"]) {
-    $(id).disabled = running || (["items", "item-delay"].includes(id) ? $("mode").value !== "saved" :
-      ["batches", "delay"].includes(id) ? $("mode").value !== "activity" : false);
-  }
+  renderControls();
   const saved = (run?.mode || $("mode").value) === "saved";
   $("batch-metric").hidden = saved;
   $("counter-hint").textContent = saved ? "*Se contabilizan cuando se comprueba que la tarjeta desapareció. Comprueba también el resultado en Guardados." :
     "*Se contabilizan después de verificar la página recargada. Comprueba también el resultado en Guardados.";
+  } finally { refreshing = false; }
 }
 $("mode").addEventListener("change", () => { renderMode(); void action(refresh); });
 $("open").addEventListener("click", () => action(() => request("open", { mode: $("mode").value })));
-$("inspect").addEventListener("click", () => action(async () => {
-  const { inspection: result } = await request("inspect", { mode: $("mode").value });
-  $("inspection").textContent = result.mode === "saved" ? (result.ready ? `${result.loaded} tarjetas reconocidas. Listo para eliminar una por una y desplazar cuando sea necesario.` :
-    `Se reconocieron ${result.loaded} tarjetas. Carga elementos y cierra menús o diálogos antes de iniciar.`) : result.empty ? "Facebook muestra una lista vacía." :
-    result.ready ? 'Página reconocida. Casilla «Todo» disponible y sin selección previa.' :
-      `La página no está lista. Cargando: ${result.loading ? "sí" : "no"}; diálogos: ${result.dialogs}.`;
-}));
+$("inspect").addEventListener("click", async () => {
+  if (inspecting || currentRun?.status === "running") return;
+  inspecting = true;
+  $("error").textContent = "";
+  $("inspection").dataset.state = "pending";
+  $("inspection").textContent = "Comprobando esta página… No se eliminará ningún elemento.";
+  renderControls();
+  try {
+    const { inspection: result } = await request("inspect", { mode: $("mode").value });
+    $("inspection").dataset.state = result.ready ? "ready" : "review";
+    $("inspection").textContent = result.mode === "saved" ? (result.ready ? `${result.loaded} tarjetas reconocidas. Listo para eliminar una por una y desplazar cuando sea necesario.` :
+      `Se reconocieron ${result.loaded} tarjetas. Cargando: ${result.loading ? "sí" : "no"}; menús o diálogos: ${result.dialogs}. Carga elementos y cierra los menús antes de iniciar.`) : result.empty ? "Facebook muestra una lista vacía." :
+      result.ready ? 'Página reconocida. Casilla «Todo» disponible y sin selección previa.' :
+        `La página no está lista. Cargando: ${result.loading ? "sí" : "no"}; diálogos: ${result.dialogs}.`;
+  } catch (error) {
+    $("inspection").dataset.state = "error";
+    $("inspection").textContent = `No se pudo comprobar esta página: ${error.message}`;
+    $("inspection").scrollIntoView({ block: "nearest" });
+  } finally {
+    inspecting = false;
+    renderControls();
+  }
+});
 $("form").addEventListener("submit", (event) => {
   event.preventDefault();
   void action(() => request("start", { acknowledged: $("ack").checked,
@@ -66,5 +106,6 @@ $("form").addEventListener("submit", (event) => {
 });
 $("stop").addEventListener("click", () => action(() => request("stop")));
 renderMode();
+$("version").textContent = `v${chrome.runtime.getManifest().version}`;
 void action(refresh);
-setInterval(() => { void refresh().catch((error) => { $("error").textContent = error.message; }); }, 1000);
+setInterval(() => { void refresh().catch((error) => { showError(error); }); }, 1000);

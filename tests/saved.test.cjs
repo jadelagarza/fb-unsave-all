@@ -151,12 +151,13 @@ test('saved protocol validates settings, owner, progress evidence, duplicates an
   assert.equal(bg.run.status, 'blocked');
 });
 
-test('all shipped version declarations agree on the major release', () => {
+test('all shipped version declarations agree on the release', () => {
   const fs = require('node:fs');
   const path = require('node:path');
   const json = (file) => JSON.parse(fs.readFileSync(path.join(__dirname, '..', file)));
-  assert.equal(json('extension/manifest.json').version, '1.0.0');
-  assert.equal(json('package.json').version, '1.0.0');
-  assert.equal(json('package-lock.json').version, '1.0.0');
-  assert.equal(json('package-lock.json').packages[''].version, '1.0.0');
+  const version = json('package.json').version;
+  assert.match(version, /^\d+\.\d+\.\d+$/);
+  assert.equal(json('extension/manifest.json').version, version);
+  assert.equal(json('package-lock.json').version, version);
+  assert.equal(json('package-lock.json').packages[''].version, version);
 });

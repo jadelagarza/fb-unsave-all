@@ -15,6 +15,7 @@
 | `tests/browser.test.cjs` | Extensión instalada en Chromium con HTML simulado y red interceptada. |
 | `tests/saved.test.cjs` | Reloj simulado y protocolo de eliminación individual, pausas, scroll, límites y cancelación. |
 | `tests/saved.browser.test.cjs` | DOM simulado de Guardados, menús, reconstrucción de tarjetas, carga por scroll y panel. |
+| `tests/popup.test.cjs` | Clic de comprobación, mensajes visibles, bloqueo de clics duplicados, tiempos de espera y respuestas tardías. |
 
 No hay proceso de compilación ni dependencias de ejecución. El usuario carga directamente `extension/`.
 
@@ -57,6 +58,14 @@ La suite carga la extensión sin empaquetar en un perfil temporal. Intercepta to
 GitHub Actions ejecuta la comprobación de sintaxis, las pruebas de ciclo y las pruebas de Chromium. Consulta el resultado de la ejecución asociada al commit; tener el archivo del workflow no demuestra que haya pasado.
 
 ## Compatibilidad y decisiones conservadoras
+
+### Comprobación del panel
+
+Comprobar es una operación de lectura. El panel cambia inmediatamente a Comprobando, deshabilita acciones incompatibles y muestra éxito o error en `#inspection`, junto al botón, con `role="status"` y `aria-busy`. Los errores de otras acciones también están antes del formulario, y se desplazan a la vista cuando proceden de una acción del usuario. La cabecera muestra la versión real del manifiesto.
+
+El service worker limita la respuesta del script de página a 8 segundos; esto libera su cola serializada si una pestaña deja de responder. El panel tiene además un límite de 10 segundos para la inspección y de 3 para la consulta de estado. Esos límites del panel sólo abandonan peticiones de lectura, no Start o Stop. Un fallo de la inspección previa a Start impide crear la ejecución, incluso si llega una respuesta tardía. Se valida la forma de la respuesta y el modo Guardados para detectar scripts antiguos.
+
+Durante una comprobación se omiten consultas periódicas de estado para que no se acumulen detrás de ella. Las pruebas de Chromium activan el botón real del DOM del panel y comprueban el mensaje de error en una vista de 380 × 600, además de comprobar que esa acción no elimina datos de la fixture.
 
 ### Guardados: uno por uno
 
