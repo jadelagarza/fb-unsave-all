@@ -36,7 +36,7 @@ Keep the extracted directory in place. This project is not currently published o
 
 Once the trial works, start a new run with a suitable batch limit. Roughly 1,500 saved items at 20 per batch require 75 batches. A limit of 100 leaves room; the run stops early if Facebook explicitly reports an empty list. The selected batch size comes from Facebook and is not hard-coded to 20.
 
-The batch limit accepts 1–500; the pause accepts 3–3,600 seconds. These are workload controls, **not Meta-approved safe automation thresholds**. Counters reset for each new run. The processed-item count reflects the selection counter and observed loading completion, not server-certified deletion.
+The batch limit accepts 1–500; the pause accepts 3–3,600 seconds. These are workload controls, **not Meta-approved safe automation thresholds**. Counters reset for each new run. The processed-item count reflects the selection counter and the observed evidence of batch completion, not server-certified deletion.
 
 ## Stopping and failures
 
