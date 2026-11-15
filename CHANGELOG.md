@@ -1,5 +1,12 @@
 # Cambios
 
+## 0.1.3 — 14 de noviembre de 2026
+
+- Reconoce «No hay nada para mostrar», incluso con la casilla Todo visible y deshabilitada.
+- Verifica el fin de cada eliminación antes de recargar. Si no se observó el indicador, exige evidencia estable de que desaparecieron todos los elementos seleccionados capturados o de que la vista está explícitamente vacía, con la selección restablecida.
+- Una vista vacía después de eliminar sólo termina el lote actual: se recarga siempre para comprobar si quedan otros lotes. La limpieza sólo finaliza por vacío después de esa comprobación.
+- Añade pruebas de dos y tres lotes, último lote parcial, indicador no observable, vacío transitorio, selección que tarda en restablecerse y eliminación que reaparece después de recargar.
+
 ## 0.1.2 — 14 de noviembre de 2026
 
 - Corrige la detección de la capa global de carga que Facebook coloca fuera del área principal y de los diálogos. Se confirmó su estructura mediante inspección del DOM real, sin ejecutar eliminaciones para inspeccionarla.

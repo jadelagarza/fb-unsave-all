@@ -26,10 +26,10 @@ npm test
 
 Las pruebas de ciclo ejecutan el código real de `background.js` y `content.js` en contextos VM, con un adaptador DOM y APIs de Chrome simulados. Verifican que:
 
-- se seleccione, confirme y observe la carga antes de recargar;
+- se seleccione, confirme y compruebe el fin de la eliminación antes de recargar;
 - el último lote también se recargue, se conserve el progreso y no se exceda el límite;
 - varios lotes continúen sólo en el nuevo documento y finalicen ante una lista explícitamente vacía;
-- no se recargue cuando falta el indicador, sigue cargando o el usuario detuvo el proceso;
+- no se recargue si faltan tanto el indicador como evidencia verificable, si sigue cargando, si la selección no se restablece o si el usuario detuvo el proceso;
 - una lista sin cambios, una interfaz desconocida o una verificación bloqueen la ejecución;
 - otra pestaña/documento no pueda continuar una ejecución, y una recarga inesperada la bloquee;
 - una recarga no autorizada por el estado se rechace.
@@ -60,7 +60,13 @@ Reconoce indicadores visibles con `role="progressbar"`, `aria-busy="true"`, `dat
 
 La visibilidad comprueba el indicador y sus antecesores: un nodo eliminado, sin rectángulos de presentación, con `display: none`, `visibility: hidden/collapse`, opacidad cero o dentro de un área oculta deja de contar como carga. Mientras la capa global está activa puede conservarse el contexto de guardados ya verificado si Facebook oculta el fondo para accesibilidad; esto no autoriza una URL o categoría nuevas.
 
-Observa mutaciones antes del clic de confirmación y exige 1.5 segundos estables sin carga antes de recargar. El panel distingue «Esperando a que aparezca…» de «Carga detectada…». Las pruebas reproducen una capa global que permanece en el DOM después de ocultarse, variantes de opacidad/antecesor oculto/eliminación del nodo, un fondo oculto para accesibilidad y una capa que sigue visible y no debe recargarse. Un indicador sólo gráfico sin señales reconocibles sigue provocando una detención; no se sustituye la observación por un temporizador que recarga a ciegas.
+Observa mutaciones antes del clic de confirmación. Para recargar exige que no haya carga ni diálogo, que la selección y los controles se restablezcan y que el resultado sea estable durante 1.5 segundos. El panel indica cuándo se ha detectado la carga. Las pruebas reproducen una capa global que permanece en el DOM después de ocultarse, variantes de opacidad/antecesor oculto/eliminación del nodo, un fondo oculto para accesibilidad y una capa que sigue visible y no debe recargarse.
+
+Antes de confirmar también captura hashes locales de las identidades de los elementos seleccionados (nombres accesibles y enlaces de sus filas). Si el indicador no fue observable, sólo permite la recarga cuando todos los elementos capturados desaparecieron y queda otra lista, o hay un mensaje explícito de vacío sin casillas de elementos. La selección debe estar restablecida y el resultado estable. Si no pudo capturar todos los elementos seleccionados, la vía de desaparición de filas no se utiliza. No guarda esos textos o enlaces ni añade consultas al servidor.
+
+El protocolo de recarga sólo acepta tres motivos verificados: `loading`, `items-removed` y `empty`; los almacena como `lastCompletionKind`. Una casilla desmarcada, un cambio genérico de texto o un temporizador agotado no autorizan recargar. Si no hay carga ni evidencia en 15 segundos se detiene; una carga observada dispone de 90 segundos para finalizar.
+
+«No hay nada para mostrar» se reconoce también cuando Todo y Eliminar permanecen deshabilitados. Si aparece después de confirmar, termina sólo el lote y obliga a recargar. El nuevo documento comprueba si hay más elementos antes de concluir la ejecución o respetar el límite. Las pruebas de navegador incluyen dos lotes con carga global y vistas vacías entre recargas, tres lotes sin un indicador observable, un último lote parcial, una vista vacía fugaz, restauración tardía de la selección y una eliminación que reaparece tras recargar y debe bloquearse antes del siguiente intento.
 
 La casilla se localiza por su nombre accesible exacto. El contador admite formatos como `20 elementos seleccionados`, `20 seleccionados`, `20 items selected`, `20 selected` o un número sin texto, como `16`. Se busca exclusivamente en el contenedor común más pequeño de la casilla Todo marcada y los botones Desmarcar y Eliminar. Ese contenedor debe estar separado del área principal y no contener filas, artículos ni otras casillas: los números o textos de las publicaciones nunca se usan como contador. Valores distintos dentro de esa barra se consideran ambiguos y bloquean la eliminación. La confirmación se busca en un único `role="dialog"` o `role="alertdialog"` con Cancelar y Eliminar. Más de un candidato implica detenerse.
 

@@ -58,6 +58,41 @@
       settled: () => observed && idleSince > 0 && Date.now() - idleSince >= 1500,
       disconnect: () => observer.disconnect() };
   }
+  async function waitForDeletion(run, tracker, snapshot) {
+    const appearanceDeadline = Date.now() + 15000;
+    let completionDeadline = appearanceDeadline;
+    let announcedLoading = false;
+    let evidenceKey = null;
+    let evidenceSince = 0;
+    while (Date.now() < completionDeadline) {
+      alive();
+      dom.assertPage();
+      tracker.sample();
+      if (tracker.observed && !announcedLoading) {
+        completionDeadline = Date.now() + 90000;
+        announcedLoading = true;
+        await phase(run, "waiting", "Carga detectada. Esperando a que termine la eliminación…");
+      }
+      if (dom.isLoading() || dom.dialogs().length) {
+        evidenceKey = null;
+        evidenceSince = 0;
+      } else {
+        const state = dom.deletionState(snapshot);
+        const kind = tracker.observed ? (state.selectionCleared ? "loading" : null) :
+          state.empty ? "empty" : state.itemsRemoved ? "items-removed" : null;
+        const key = kind && `${kind}:${state.fingerprint}`;
+        if (!kind || key !== evidenceKey) { evidenceKey = key; evidenceSince = kind ? Date.now() : 0; }
+        if (kind && evidenceSince && Date.now() - evidenceSince >= 1500 && (!tracker.observed || tracker.settled())) {
+          return { completionKind: kind, loadingObserved: tracker.observed, evidenceVerified: true };
+        }
+      }
+      await pause(100);
+    }
+    if (!tracker.observed) {
+      throw new Error("No se observó el indicador de carga ni un resultado verificable de la eliminación. No se recargará ni repetirá el lote; revisa la página manualmente.");
+    }
+    throw new Error("La carga, el diálogo o la selección no terminaron de restablecerse. No se recargará la página.");
+  }
   async function execute() {
     if (active) return;
     active = true;
@@ -94,6 +129,7 @@
         if (count > 0 && dom.checked(fresh.checkbox)) { dom.toolbarDelete(); return count; }
         return null;
       }, 15000, "No se pudo comprobar la cantidad seleccionada");
+      const deletion = dom.captureDeletion(selected);
       await phase(run, "confirming", `${selected} elementos seleccionados. Abriendo confirmación…`, { selected, fingerprint: state.fingerprint });
       await check(run);
       dom.toolbarDelete().click();
@@ -104,16 +140,10 @@
       try {
         await check(run);
         dom.confirmationDelete().click();
-        await phase(run, "waiting", "Esperando a que aparezca el indicador de carga…");
-        await waitFor(() => { tracker.sample(); return tracker.observed; }, 15000,
-          "No se observó el indicador de carga después de confirmar. No se recargará ni se repetirá el lote");
-        await phase(run, "waiting", "Carga detectada. Esperando a que el indicador se oculte…");
-        await waitFor(() => {
-          tracker.sample();
-          return tracker.settled() && !dom.isLoading() && dom.dialogs().length === 0;
-        }, 90000, "La carga o el diálogo no terminaron. No se recargará la página");
+        await phase(run, "waiting", "Esperando el fin de la eliminación: carga o cambio verificable en los elementos…");
+        const completion = await waitForDeletion(run, tracker, deletion);
         await check(run);
-        await send("reload", { id: run.id, loadingObserved: true });
+        await send("reload", { id: run.id, ...completion });
       } finally { tracker.disconnect(); }
     } catch (error) {
       if (run && !cancelled) {

@@ -87,6 +87,9 @@ async function contentHarness(options = {}) {
     selectedCount: () => state.selected,
     dialogs: () => state.dialog ? [{}] : [],
     isLoading: () => state.loading,
+    captureDeletion: () => ({ keys: ['fixture-item'], allCaptured: true }),
+    deletionState: () => ({ selectionCleared: !state.checked && state.selected === 0,
+      empty: state.empty, itemsRemoved: Boolean(state.verifiedRemoval), fingerprint: state.fingerprint }),
     toolbarDelete: () => ({ click() { state.dialog = true; record('open-confirmation'); } }),
     confirmationDelete: () => {
       if (!state.dialog) throw new Error('Missing confirmation');
@@ -96,7 +99,10 @@ async function contentHarness(options = {}) {
         if (!state.noLoader) { state.loading = true; notify(); record('loading-start'); }
         if (state.onConfirm) state.onConfirm({ bg, state, clock });
         if (!state.stuckLoader) clock.setTimeout(() => {
-          state.loading = false; state.checked = false; state.selected = 0;
+          state.loading = false;
+          if (!state.keepSelection) { state.checked = false; state.selected = 0; }
+          if (state.emptyAfterDeletion) state.empty = true;
+          if (state.verifyRemovalAfterDeletion) state.verifiedRemoval = true;
           if (!state.noProgress) state.fingerprint = 'batch-b';
           record('loading-end'); notify();
         }, state.loadingDuration || 500);

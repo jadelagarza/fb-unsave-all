@@ -10,7 +10,8 @@
   const deselectNames = new Set(["desmarcar", "deseleccionar", "deselect", "deselect all"]);
   const emptyPatterns = [
     /\bno (?:hay|tienes) (?:ningun |mas )?elementos? guardados?\b/,
-    /\bno hay (?:mas )?(?:elementos|actividad) para mostrar\b/,
+    /\bno hay (?:mas )?(?:elementos|actividad|nada) para mostrar\b/,
+    /\bnothing to (?:show|display)\b/,
     /\bno (?:saved items|items to show|activity to show)\b/,
     /\byou (?:have no|haven't saved any) (?:saved )?items\b/
   ];
@@ -141,20 +142,60 @@
     if (matches.size > 1) throw new Error("El contador de seleccionados es ambiguo.");
     return [...matches][0] || 0;
   }
-  function fingerprint(scope) {
-    // Store only a short hash in extension session memory, never post text or URLs.
-    const text = normalize(scope.innerText);
+  function hashText(text) {
     let hash = 2166136261;
     for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 16777619);
     return (hash >>> 0).toString(16);
+  }
+  function fingerprint(scope) {
+    // Store only a short hash in extension session memory, never post text or URLs.
+    return hashText(normalize(scope.innerText));
+  }
+  function itemCheckboxes(scope) {
+    return elements(scope, 'input[type="checkbox"],[role="checkbox"]')
+      .filter((element) => !allNames.has(name(element)));
+  }
+  function itemKey(checkbox, scope) {
+    const label = name(checkbox);
+    for (let row = checkbox.parentElement; row && row !== scope; row = row.parentElement) {
+      if (row.querySelectorAll('input[type="checkbox"],[role="checkbox"]').length > 1) break;
+      const links = Array.from(row.querySelectorAll('a[href]')).map((link) => link.getAttribute("href")).sort();
+      if (links.length) return hashText(`${label}|${links.join("|")}`);
+    }
+    return label ? hashText(label) : null;
+  }
+  function captureDeletion(selected) {
+    const scope = assertPage();
+    const selectedItems = itemCheckboxes(scope).filter(checked);
+    const keys = new Set(selectedItems.map((checkbox) => itemKey(checkbox, scope)).filter(Boolean));
+    return { keys: [...keys], allCaptured: selectedItems.length === selected && keys.size === selected };
+  }
+  function hasEmptyMessage(scope) {
+    return elements(scope, 'div,p,span,[role="status"]').some((element) => {
+      if (element.closest('article,[role="row"],[role="listitem"]')) return false;
+      const text = normalize(element.innerText || "");
+      return text.length <= 100 && emptyPatterns.some((pattern) => pattern.test(text));
+    });
+  }
+  function deletionState(snapshot) {
+    const scope = assertPage();
+    const items = itemCheckboxes(scope);
+    const all = allCheckbox(scope);
+    const selectionCleared = (!all || (!checked(all) && all.getAttribute("aria-checked") !== "mixed")) &&
+      !items.some(checked) && buttons(scope, deselectNames).length === 0 && buttons(scope, deleteNames).length === 0;
+    const empty = hasEmptyMessage(scope) && items.length === 0 && selectionCleared;
+    const currentKeys = new Set(items.map((checkbox) => itemKey(checkbox, scope)).filter(Boolean));
+    const itemsRemoved = Boolean(snapshot?.allCaptured && snapshot.keys.length &&
+      snapshot.keys.every((key) => !currentKeys.has(key)) && items.length > 0 && selectionCleared);
+    return { selectionCleared, empty, itemsRemoved, fingerprint: fingerprint(scope) };
   }
   function ready() {
     const scope = assertPage();
     if (isLoading() || dialogs().length) return null;
     const boxes = elements(scope, 'input[type="checkbox"],[role="checkbox"]')
       .filter((element) => allNames.has(name(element)) && !element.disabled && element.getAttribute("aria-disabled") !== "true");
-    const empty = emptyPatterns.some((pattern) => pattern.test(normalize(scope.innerText)));
-    if (empty && boxes.length === 0) return { empty: true, fingerprint: fingerprint(scope) };
+    const completion = deletionState();
+    if (completion.empty) return { empty: true, fingerprint: completion.fingerprint };
     if (boxes.length === 0) return null; // Absence of controls alone does NOT mean the list is empty.
     const checkbox = unique(boxes, 'casilla «Todo»');
     if (checked(checkbox) || selectedCount(scope) > 0) throw new Error("Desmarca la selección existente antes de comenzar.");
@@ -184,5 +225,5 @@
     };
   }
   root.FBUnsave = Object.freeze({ normalize, visible, name, buttons, unique, dialogs, checked,
-    assertPage, isLoading, selectedCount, fingerprint, ready, toolbarDelete, confirmationDelete, inspect });
+    assertPage, isLoading, selectedCount, fingerprint, captureDeletion, deletionState, ready, toolbarDelete, confirmationDelete, inspect });
 })(globalThis);

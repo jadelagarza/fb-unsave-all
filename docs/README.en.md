@@ -2,9 +2,9 @@
 
 [Español](../README.md) · [Development and verification](DEVELOPMENT.md)
 
-FB Unsave All is a local Chrome extension that clears your Facebook saved items using the batch controls in Activity Log. It reloads the tab **only after a loading indicator has appeared and then disappeared for 1.5 seconds** and the confirmation dialog has closed. It resumes after that reload.
+FB Unsave All is a local Chrome extension that clears your Facebook saved items using the batch controls in Activity Log. It reloads the tab **only after deletion completion has been verified**, the dialog has closed, selection has reset, and the resulting UI has remained stable for 1.5 seconds. It resumes after that reload.
 
-**Version 0.1.2 is pending full verification of the corrected cycle on a real Facebook account.** Read-only inspection of the real DOM confirmed a global deletion progressbar outside both the main area and dialogs. This version recognizes it and waits until it becomes invisible, even if Facebook keeps the node in the DOM. It retains the bare numeric counter fix from 0.1.1. Automated tests use simulated pages. They do not establish compatibility with every Facebook rollout or guarantee successful deletion on a particular account.
+**Version 0.1.3 is pending full verification of the corrected cycle on a real Facebook account.** It recognizes the actual empty-state message «No hay nada para mostrar» and can verify completion when a spinner was not observable. An empty view before reload only ends the current batch; the reloaded page must confirm whether more batches remain. Automated tests use simulated pages and do not establish compatibility with every Facebook rollout.
 
 ## Install
 
@@ -31,7 +31,7 @@ Keep the extracted directory in place. This project is not currently published o
 5. Click **2. Comprobar esta página**. Inspection does not select or delete anything.
 6. Keep **Máximo de lotes** at **1** and **Pausa entre lotes (s)** at **10** for the first run. Read and tick the acknowledgement, then click **3. Iniciar limpieza**.
 7. Keep Chrome open and the Facebook tab visible. Do not manually operate that tab or switch Facebook profiles during a run. Closing the popup does not stop the run.
-8. The extension selects All, reads the selected count, clicks the toolbar Delete button, then the confirmation-dialog Delete button. It observes loading before performing a normal tab reload. Even the final authorized batch is reloaded.
+8. The extension selects All, reads the selected count, clicks the toolbar Delete button, then the confirmation-dialog Delete button. It verifies completion before a normal tab reload. Even the final authorized batch is reloaded.
 9. Check the general Saved screen manually to confirm that the trial batch was actually unsaved.
 
 Once the trial works, start a new run with a suitable batch limit. Roughly 1,500 saved items at 20 per batch require 75 batches. A limit of 100 leaves room; the run stops early if Facebook explicitly reports an empty list. The selected batch size comes from Facebook and is not hard-coded to 20.
@@ -41,10 +41,11 @@ The batch limit accepts 1–500; the pause accepts 3–3,600 seconds. These are 
 ## Stopping and failures
 
 - Click **Detener ejecución** to stop subsequent actions, or close the authorized Facebook tab. A deletion already confirmed cannot be cancelled or undone by this tool.
-- If a loader is not observed within 15 seconds, or does not finish within 90 seconds after detection, the extension stops without a blind reload or retry.
+- If no loader is observed, completion requires either the disappearance of all captured selected items or an explicit empty state with no item checkboxes. Selection must reset, deletion controls must be inactive, and the resulting UI must remain stable for 1.5 seconds. Merely clearing selection is not sufficient.
+- If neither loading nor verifiable completion can be established within 15 seconds, or completion does not follow within 90 seconds after observing loading, the extension stops without a blind reload or retry.
 - A global fixed-position loading overlay is monitored as well. Its presence in the DOM alone does not mean it is still loading: CSS-hidden, fully transparent, detached, or ancestor-hidden indicators are considered invisible. The popup distinguishes waiting for an indicator from an indicator that has already been detected.
 - Unrecognized or ambiguous controls, a recognized error or security challenge, a pre-existing selection, or an unchanged list after reload stops the run.
-- Missing controls alone do not count as an empty list. Only a recognized explicit empty-list message finishes it as empty.
+- Missing controls alone do not count as an empty list. «No hay nada para mostrar» is recognized even if a disabled All checkbox remains. An empty view before reload does not finish the run: it reloads to check for more batches and only finishes as empty after that fresh check.
 - An unexpected manual reload during a pending batch blocks automatic resumption. Inspect the outcome before starting again.
 - After updating the extension in `chrome://extensions`, reload Facebook too.
 

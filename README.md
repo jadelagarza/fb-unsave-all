@@ -6,7 +6,7 @@ Vacía los elementos guardados de tu cuenta de Facebook mediante los botones del
 
 ## Estado del proyecto
 
-**Versión 0.1.2. Validación completa del ciclo corregido en una cuenta real de Facebook pendiente.** Una inspección del DOM real confirmó un indicador global de carga fuera del área principal y de los diálogos. Esta versión lo reconoce y espera a que se oculte, aunque Facebook conserve el nodo en el DOM. Mantiene la corrección del contador numérico de 0.1.1. Las pruebas automatizadas usan simulaciones; no demuestran que los selectores coincidan con todas las versiones actuales de Facebook ni garantizan vaciar una cuenta concreta.
+**Versión 0.1.3. Validación completa del ciclo corregido en una cuenta real de Facebook pendiente.** Reconoce «No hay nada para mostrar» y verifica el fin de cada eliminación, incluso si el indicador fue demasiado breve para observarse. Recarga después de cada lote, incluido el último, y sólo declara una lista vacía después de comprobar la página recargada. Las pruebas automatizadas usan simulaciones; no demuestran que los selectores coincidan con todas las versiones actuales de Facebook ni garantizan vaciar una cuenta concreta.
 
 La extensión quita referencias de tu lista de guardados. No elimina las publicaciones originales de otras personas. Revisa primero cualquier elemento que quieras conservar: este proyecto no proporciona una función para restaurar los guardados eliminados.
 
@@ -16,11 +16,13 @@ La extensión quita referencias de tu lista de guardados. No elimina las publica
 2. Comprueba que la página sea el Registro de actividad y que muestre el título **Tus elementos guardados** o **Your saved items**.
 3. Marca la casilla **Todo** y lee la cantidad seleccionada. El tamaño del lote lo decide Facebook; no está fijado a 20 por el script.
 4. Pulsa **Eliminar** en la barra y después **Eliminar** dentro del diálogo con **Cancelar**.
-5. Espera a observar un indicador de carga y luego su desaparición visual estable durante 1.5 segundos. Reconoce también la capa global que Facebook coloca fuera del área principal. Un indicador con `display: none`, `visibility: hidden`, opacidad cero, un antecesor oculto o eliminado del DOM ya no se considera visible. También comprueba que el diálogo haya desaparecido.
-6. Ejecuta una **recarga normal de la pestaña con `chrome.tabs.reload`**, equivalente a usar el botón de recarga de Chrome. La recarga ocurre después de terminar la carga, incluso en el último lote autorizado.
+5. Comprueba el fin de la eliminación. Si observa carga, espera a que el indicador se oculte, se cierre el diálogo y se restablezca la selección. Si no observa el indicador, exige que desaparezcan los elementos seleccionados identificados antes de confirmar, o que aparezca un mensaje explícito de vacío sin elementos restantes. La selección debe quedar desmarcada, sin botones de eliminación activos, y el resultado debe mantenerse estable durante 1.5 segundos. Desmarcar las casillas por sí solo no es suficiente.
+6. Ejecuta una **recarga normal de la pestaña con `chrome.tabs.reload`**, equivalente a usar el botón de recarga de Chrome. La recarga ocurre después de comprobar el fin de la eliminación, incluso en el último lote autorizado.
 7. Tras la recarga, comprueba la lista, aplica la pausa configurada y empieza el siguiente lote.
 
-Si el indicador no aparece, no termina o no puede reconocerse, **no recarga a ciegas y no vuelve a pulsar Eliminar**. Se detiene para que revises la página.
+Si no reconoce ni el ciclo de carga ni un resultado verificable de la eliminación, **no recarga a ciegas y no vuelve a pulsar Eliminar**. Se detiene para que revises la página. La ausencia del círculo de carga por sí sola nunca se considera un éxito.
+
+**Una vista vacía antes de recargar puede significar que se vació sólo el lote cargado.** La extensión recarga, comprueba si aparecen más elementos y continúa si queda margen en el máximo de lotes. Sólo finaliza por lista vacía cuando la página recargada confirma ese estado.
 
 ## Requisitos
 
@@ -72,14 +74,14 @@ Si Facebook selecciona unos 20 elementos por lote, 1,500 elementos requieren apr
 | Pausa entre lotes | 10 segundos | Entre 3 y 3,600 segundos. Se cuenta desde el final del lote anterior; la recarga sucede primero. No representa un ritmo garantizado como seguro. |
 | Detener ejecución | Disponible al ejecutar | Evita los siguientes pasos cuando el script recibe la orden. Una eliminación ya confirmada no puede deshacerse. |
 
-Los elementos **procesados** se calculan a partir del contador de selección y del ciclo de carga observado. No son una certificación del servidor de Facebook. Una huella local permite detectar que la lista sigue idéntica después de recargar; es una comprobación conservadora, no una prueba absoluta de borrado.
+Los elementos **procesados** se calculan a partir del contador de selección y la comprobación de finalización del lote. No son una certificación del servidor de Facebook. Una huella local permite detectar que la lista sigue idéntica después de recargar; si eso ocurre se bloquea la siguiente eliminación. Es una comprobación conservadora, no una prueba absoluta de borrado.
 
 ## Cuándo se detiene
 
-- Facebook muestra una lista explícitamente vacía, o se alcanza el máximo de lotes.
+- Facebook muestra una lista explícitamente vacía después de recargar, o se alcanza el máximo de lotes.
 - Pulsas **Detener ejecución** o cierras la pestaña autorizada.
 - La página, la casilla, el contador o los botones no pueden reconocerse sin ambigüedad.
-- No aparece el indicador de carga en 15 segundos o no termina dentro de los 90 segundos siguientes a su detección.
+- En 15 segundos no puede comprobar ni carga ni evidencia estable de eliminación, o el proceso no termina dentro de los 90 segundos siguientes a detectar la carga.
 - La lista sigue igual después de recargar, hay una selección manual previa o aparece un mensaje de error o verificación reconocido.
 - Recargas manualmente o navegas mientras un lote estaba pendiente. No se reanuda automáticamente una eliminación incierta.
 
@@ -96,10 +98,10 @@ El estado vive en `chrome.storage.session`: sobrevive a las recargas de Facebook
 | El enlace directo abre otra pantalla | Sigue la ruta manual. El script mantiene la comprobación de categoría antes de hacer clic. |
 | No encuentra «Todo», el contador o un botón | Detén la ejecución. La interfaz puede haber cambiado o estar en un idioma no compatible. No elimines las comprobaciones para forzarla. |
 | «No se pudo comprobar la cantidad…» y la barra sólo muestra un número, como `16` | Actualiza a 0.1.1 o posterior. Recarga la extensión en `chrome://extensions` y después recarga Facebook para quitar la selección pendiente. Prueba con un lote. |
-| No se observó el indicador de carga | Puede que Facebook use un indicador distinto o que el ciclo no haya sido observable. Revisa los guardados manualmente; no se recargará ni repetirá el lote. |
+| No se observó el indicador de carga ni un resultado verificable | Tampoco se pudo comprobar que desaparecieran los elementos seleccionados o que la vista quedara explícitamente vacía y estable. Revisa los guardados manualmente; no se recargará ni repetirá el lote. |
 | Sí hubo eliminación y un círculo de carga global, pero la versión anterior decía que no lo observó | Actualiza a 0.1.2 o posterior. Esta versión reconoce el indicador global confirmado en el DOM real. Recarga la extensión y después Facebook antes de probar con un lote. |
 | La lista sigue igual | Revisa si la eliminación funcionó. También puede ser una limitación de la huella si dos lotes tienen el mismo texto. |
-| No se declara lista vacía | Si Facebook usa otro mensaje de vacío, el script se detiene por falta de controles reconocibles. Comprueba el estado manualmente. |
+| Muestra «No hay nada para mostrar» después de borrar | Se recarga para comprobar si quedan más lotes. Desde 0.1.3 se reconoce ese mensaje, incluso si Todo permanece visible y deshabilitado. Si aparece un texto de vacío diferente no reconocido, revisa el estado manualmente. |
 | Facebook pide contraseña, CAPTCHA o verificar identidad | Detén la ejecución y resuelve la comprobación manualmente. La extensión no la supera ni intenta eludirla. |
 | Cambiaste archivos del repositorio | En `chrome://extensions`, pulsa Recargar en la extensión; luego recarga Facebook. Inicia una ejecución nueva. |
 

@@ -122,3 +122,52 @@ test('a request to reload before completion is rejected', async () => {
   assert.equal(response.ok, false);
   assert.equal(h.reloads.length, 0);
 });
+
+test('a missed spinner with stable explicit empty evidence still reloads and completes its last batch', async () => {
+  const h=await contentHarness({noLoader:true,emptyAfterDeletion:true});
+  await h.start(1);
+  await h.clock.until(()=>h.bg.reloads.length===1);
+  assert.equal(h.bg.run.lastCompletionKind,'empty');
+  assert.equal(h.bg.run.processed,20);
+  h.reloadDocument();
+  await h.clock.until(()=>h.bg.run.status==='finished');
+  assert.match(h.bg.run.message,/no quedan/);
+  assert.equal(h.bg.reloads.length,1);
+});
+
+test('two missed-spinner batches continue only after each verified removal and reload', async () => {
+  const h=await contentHarness({noLoader:true,verifyRemovalAfterDeletion:true});
+  await h.start(2);
+  await h.clock.until(()=>h.bg.reloads.length===1);
+  assert.equal(h.bg.run.lastCompletionKind,'items-removed');
+  h.reloadDocument();
+  await h.clock.until(()=>h.bg.reloads.length===2);
+  assert.equal(h.bg.run.batches,2);
+  assert.equal(h.bg.run.processed,40);
+  h.setState({empty:true});
+  h.reloadDocument();
+  await h.clock.until(()=>h.bg.run.status==='finished');
+  assert.equal(h.events.filter(event=>event.type==='confirm-delete').length,2);
+});
+
+test('loader completion alone is insufficient while selection has not reset', async () => {
+  const h=await contentHarness({keepSelection:true});
+  await h.start(2);
+  await h.clock.until(()=>h.bg.run.status==='blocked');
+  assert.match(h.bg.run.message,/selección no terminaron/);
+  assert.equal(h.bg.reloads.length,0);
+});
+
+test('the background requires a recognized completion kind and explicit verified evidence', async () => {
+  const h=backgroundHarness();
+  await h.request('start',{acknowledged:true,maxBatches:2,delaySeconds:3});
+  await h.request('hello',{},h.pageSender());
+  const id=h.run.id;
+  await h.request('phase',{id,phase:'confirming',selected:20,fingerprint:'before'},h.pageSender());
+  await h.request('phase',{id,phase:'waiting'},h.pageSender());
+  assert.equal((await h.request('reload',{id,loadingObserved:true},h.pageSender())).ok,false);
+  assert.equal((await h.request('reload',{id,completionKind:'arbitrary',evidenceVerified:true},h.pageSender())).ok,false);
+  assert.equal(h.reloads.length,0);
+  assert.equal((await h.request('reload',{id,completionKind:'empty',evidenceVerified:true},h.pageSender())).ok,true);
+  assert.equal(h.reloads.length,1);
+});

@@ -96,10 +96,14 @@ async function handle(message, sender) {
     return { run: await write({ ...run, status: message.type === "finish" ? "finished" : "blocked", message: String(message.text) }) };
   }
   if (message.type === "reload") {
-    if (run.phase !== "waiting" || run.pendingSelected < 1 || message.loadingObserved !== true) throw new Error("Recarga rechazada: no se ha verificado el ciclo de carga.");
+    const validCompletion = message.evidenceVerified === true &&
+      ((message.completionKind === "loading" && message.loadingObserved === true) ||
+       message.completionKind === "empty" || message.completionKind === "items-removed");
+    if (run.phase !== "waiting" || run.pendingSelected < 1 || !validCompletion) throw new Error("Recarga rechazada: no se ha verificado el fin de la eliminación.");
     await write({ ...run, phase: "reloading", batches: run.batches + 1,
       processed: run.processed + run.pendingSelected, pendingSelected: 0,
-      awaitingVerification: true, notBefore: Date.now() + run.delayMs, message: "Carga finalizada. Recargando la página…" });
+      awaitingVerification: true, lastCompletionKind: message.completionKind,
+      notBefore: Date.now() + run.delayMs, message: "Eliminación finalizada. Recargando para verificar y cargar el siguiente lote…" });
     try { await chrome.tabs.reload(run.tabId, { bypassCache: false }); }
     catch (error) {
       const latest = await read();
