@@ -42,7 +42,7 @@ function backgroundHarness(clock = new Clock()) {
     console, URL, crypto: { randomUUID }, Date: clock.Date,
     chrome: {
       storage: { session: { get: async () => ({ run }), set: async (value) => { run = value.run; } } },
-      runtime: { getURL: (suffix) => `chrome-extension://fixture/${suffix}`, onMessage: { addListener: (fn) => { listener = fn; } } },
+      runtime: { id: 'fixture-extension', getURL: (suffix) => `chrome-extension://fixture/${suffix}`, onMessage: { addListener: (fn) => { listener = fn; } } },
       tabs: {
         query: async () => [{ id: 7, url: 'https://www.facebook.com/me/allactivity/?category_key=SAVEDFORLATER' }],
         sendMessage: async (_tabId, message) => pageHandler(message),

@@ -54,6 +54,7 @@ async function setup(t, mode = 'normal') {
 test('installed extension processes two real DOM batches and reloads only after loading ends', { timeout: 45000 }, async (t) => {
   const h = await setup(t);
   const inspection = await h.request('inspect');
+  assert.equal(inspection.ok, true, inspection.error);
   assert.equal(inspection.inspection.ready, true);
   const started = await h.request('start', { acknowledged: true, maxBatches: 100, delaySeconds: 3 });
   assert.equal(started.ok, true, started.error);

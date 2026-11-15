@@ -5,7 +5,7 @@ let queue = Promise.resolve();
 const read = async () => (await chrome.storage.session.get(KEY))[KEY] || null;
 const write = async (run) => { await chrome.storage.session.set({ [KEY]: run }); return run; };
 function extensionSender(sender) {
-  return !sender.tab && sender.url?.startsWith(chrome.runtime.getURL(""));
+  return sender.id === chrome.runtime.id && sender.url === chrome.runtime.getURL("popup.html");
 }
 function validTabUrl(url) {
   try { return new URL(url).origin === "https://www.facebook.com"; } catch { return false; }
