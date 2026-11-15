@@ -80,6 +80,44 @@ test('installed extension rejects another activity-log category', { timeout: 150
   assert.equal((await h.events()).some((event) => event.event === 'confirm-delete'), false);
 });
 
+test('installed extension reads the bare 16 counter in the selection bar and ignores post numbers', { timeout: 15000 }, async (t) => {
+  const h = await setup(t, 'bare-counter');
+  const inspection = await h.request('inspect');
+  assert.equal(inspection.ok, true, inspection.error);
+  assert.equal(inspection.inspection.selected, 0, 'unselected post text must not count as a selection');
+  const started = await h.request('start', { acknowledged: true, maxBatches: 1, delaySeconds: 3 });
+  assert.equal(started.ok, true, started.error);
+  const run = await h.untilStatus('finished');
+  assert.equal(run.processed, 16);
+  assert.equal(run.batches, 1);
+  const events = await h.events();
+  assert.equal(events.filter((event) => event.event === 'confirm-delete').length, 1);
+  assert.equal(events.filter((event) => event.event === 'page-load').length, 2);
+  assert.ok(events.findIndex((event) => event.event === 'loading-end') < events.findLastIndex((event) => event.event === 'page-load'));
+  const emptyInspection = await h.request('inspect');
+  assert.equal(emptyInspection.ok, true, emptyInspection.error);
+  assert.equal(emptyInspection.inspection.empty, true);
+  assert.equal(emptyInspection.inspection.selected, 0);
+});
+
+test('installed extension rejects conflicting counters in the selection bar before deleting', { timeout: 25000 }, async (t) => {
+  const h = await setup(t, 'ambiguous-counter');
+  const started = await h.request('start', { acknowledged: true, maxBatches: 1, delaySeconds: 3 });
+  assert.equal(started.ok, true, started.error);
+  const run = await h.untilStatus('blocked');
+  assert.match(run.message, /ambiguo/);
+  assert.equal((await h.events()).some((event) => event.event === 'confirm-delete'), false);
+});
+
+test('installed extension does not use numbers or selection-like text from saved posts as the counter', { timeout: 25000 }, async (t) => {
+  const h = await setup(t, 'number-in-post');
+  const started = await h.request('start', { acknowledged: true, maxBatches: 1, delaySeconds: 3 });
+  assert.equal(started.ok, true, started.error);
+  const run = await h.untilStatus('blocked');
+  assert.match(run.message, /cantidad seleccionada/);
+  assert.equal((await h.events()).some((event) => event.event === 'confirm-delete'), false);
+});
+
 test('installed extension stops when there is no loading indicator and never reloads blindly', { timeout: 30000 }, async (t) => {
   const h = await setup(t, 'no-loader');
   assert.equal((await h.request('start', { acknowledged: true, maxBatches: 100, delaySeconds: 3 })).ok, true);

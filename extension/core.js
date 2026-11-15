@@ -43,6 +43,7 @@
   function allCheckbox(scope) {
     const candidates = elements(scope, 'input[type="checkbox"],[role="checkbox"]')
       .filter((element) => allNames.has(name(element)));
+    if (candidates.length === 0) return null;
     return unique(candidates, 'casilla «Todo»');
   }
   function assertPage() {
@@ -80,14 +81,39 @@
           /^(?:cargando|loading)(?:\.{3}|…)?$/.test(name(element)));
     });
   }
+  function selectionBar(scope) {
+    const checkbox = allCheckbox(scope);
+    if (!checkbox || !checked(checkbox)) return null;
+    const outsideDialog = (element) => !element.closest('[role="dialog"],[role="alertdialog"]');
+    const clear = unique(buttons(scope, deselectNames).filter(outsideDialog), 'botón «Desmarcar»');
+    const remove = unique(buttons(scope, deleteNames).filter(outsideDialog), 'botón «Eliminar» de la barra');
+    // The smallest common container binds a bare number to Todo + Desmarcar + Eliminar.
+    // Never interpret arbitrary numbers in the main list (dates, times, or post text).
+    for (let bar = checkbox.parentElement; bar && bar !== scope; bar = bar.parentElement) {
+      if (!bar.contains(clear) || !bar.contains(remove)) continue;
+      const includesRows = elements(bar, 'article,[role="listitem"],[role="row"]').length > 0;
+      const includesItemCheckboxes = elements(bar, 'input[type="checkbox"],[role="checkbox"]')
+        .some((element) => element !== checkbox);
+      if (includesRows || includesItemCheckboxes) throw new Error("No se pudo aislar la barra de selección de los elementos guardados.");
+      return { element: bar, remove };
+    }
+    throw new Error("No se pudo aislar la barra de selección con Todo, Desmarcar y Eliminar.");
+  }
   function selectedCount(scope) {
+    const bar = selectionBar(scope);
+    if (!bar) return 0;
     const matches = new Set();
-    for (const element of elements(scope, 'span,div,p,h1,h2,h3,[role="status"]')) {
+    for (const element of elements(bar.element, 'span,div,p,h1,h2,h3,strong,b,output,[role="status"]')) {
+      if (element.closest('button,[role="button"],label,input,[role="checkbox"]')) continue;
       const text = normalize(element.innerText || "");
       if (text.length > 100) continue;
       const match = text.match(/^(\d[\d.,]*)\s+(?:(?:elementos?|publicaciones?|items?)\s+)?(?:seleccionad[oa]s?|selected)$/) ||
-        text.match(/^(?:seleccionad[oa]s?|selected)\s*:?\s*(\d[\d.,]*)$/);
-      if (match) matches.add(Number(match[1].replace(/[.,]/g, "")));
+        text.match(/^(?:seleccionad[oa]s?|selected)\s*:?\s*(\d[\d.,]*)$/) ||
+        text.match(/^(\d+|\d{1,3}(?:[.,]\d{3})+)$/);
+      if (match) {
+        const count = Number(match[1].replace(/[.,]/g, ""));
+        if (Number.isSafeInteger(count) && count > 0) matches.add(count);
+      }
     }
     if (matches.size > 1) throw new Error("El contador de seleccionados es ambiguo.");
     return [...matches][0] || 0;
@@ -113,8 +139,9 @@
   }
   function toolbarDelete() {
     const scope = assertPage();
-    unique(buttons(scope, deselectNames).filter((element) => !element.closest('[role="dialog"],[role="alertdialog"]')), 'botón «Desmarcar»');
-    return unique(buttons(scope, deleteNames).filter((element) => !element.closest('[role="dialog"],[role="alertdialog"]')), 'botón «Eliminar» de la barra');
+    const bar = selectionBar(scope);
+    if (!bar) throw new Error('La casilla «Todo» no está marcada.');
+    return bar.remove;
   }
   function confirmationDelete() {
     assertPage();

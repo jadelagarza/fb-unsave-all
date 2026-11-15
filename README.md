@@ -6,7 +6,7 @@ Vacía los elementos guardados de tu cuenta de Facebook mediante los botones del
 
 ## Estado del proyecto
 
-**Versión inicial 0.1.0. Pendiente de validar en una cuenta real de Facebook.** La implementación sigue el flujo descrito por el propietario del proyecto. Las pruebas automatizadas usan simulaciones; no demuestran que los selectores coincidan con todas las versiones actuales de Facebook ni garantizan vaciar una cuenta concreta.
+**Versión 0.1.1. Validación completa en una cuenta real de Facebook pendiente.** Esta versión corrige la lectura del contador numérico sin texto (por ejemplo, `16`) observado en la barra de selección de una cuenta real. Las pruebas automatizadas usan simulaciones; no demuestran que los selectores coincidan con todas las versiones actuales de Facebook ni garantizan vaciar una cuenta concreta.
 
 La extensión quita referencias de tu lista de guardados. No elimina las publicaciones originales de otras personas. Revisa primero cualquier elemento que quieras conservar: este proyecto no proporciona una función para restaurar los guardados eliminados.
 
@@ -95,6 +95,7 @@ El estado vive en `chrome.storage.session`: sobrevive a las recargas de Facebook
 | No encuentra «Tus elementos guardados» | Comprueba que estés en esa subcategoría del Registro de actividad. La página general Guardados no sirve. |
 | El enlace directo abre otra pantalla | Sigue la ruta manual. El script mantiene la comprobación de categoría antes de hacer clic. |
 | No encuentra «Todo», el contador o un botón | Detén la ejecución. La interfaz puede haber cambiado o estar en un idioma no compatible. No elimines las comprobaciones para forzarla. |
+| «No se pudo comprobar la cantidad…» y la barra sólo muestra un número, como `16` | Actualiza a 0.1.1 o posterior. Recarga la extensión en `chrome://extensions` y después recarga Facebook para quitar la selección pendiente. Prueba con un lote. |
 | No se observó el indicador de carga | Puede que Facebook use un indicador distinto o que el ciclo no haya sido observable. Revisa los guardados manualmente; no se recargará ni repetirá el lote. |
 | La lista sigue igual | Revisa si la eliminación funcionó. También puede ser una limitación de la huella si dos lotes tienen el mismo texto. |
 | No se declara lista vacía | Si Facebook usa otro mensaje de vacío, el script se detiene por falta de controles reconocibles. Comprueba el estado manualmente. |

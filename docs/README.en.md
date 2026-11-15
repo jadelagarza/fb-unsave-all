@@ -4,7 +4,7 @@
 
 FB Unsave All is a local Chrome extension that clears your Facebook saved items using the batch controls in Activity Log. It reloads the tab **only after a loading indicator has appeared and then disappeared for 1.5 seconds** and the confirmation dialog has closed. It resumes after that reload.
 
-**Version 0.1.0 is an initial implementation pending verification on a real Facebook account.** Automated tests use simulated pages. They do not establish compatibility with every Facebook rollout or guarantee successful deletion on a particular account.
+**Version 0.1.1 is pending full verification on a real Facebook account.** It fixes a bare numeric selection counter (for example, `16`) observed on a real account. Automated tests use simulated pages. They do not establish compatibility with every Facebook rollout or guarantee successful deletion on a particular account.
 
 ## Install
 
