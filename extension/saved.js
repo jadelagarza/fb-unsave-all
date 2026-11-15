@@ -3,6 +3,7 @@
   "use strict";
   const { normalize, visible, visuallyVisible, name, unique } = globalThis.FBUnsave;
   let verified = null;
+  let scrollArea = null;
   const controls = 'button,[role="button"]';
   const collectionNames = new Set(["agregar a coleccion", "agregar a la coleccion", "anadir a coleccion", "anadir a la coleccion", "add to collection"]);
   const moreNames = new Set(["mas", "mas opciones", "opciones", "more", "more options", "options", "menu"]);
@@ -15,7 +16,16 @@
   const cardElements = (scope, selector) => Array.from(scope.querySelectorAll(selector)).filter(visuallyVisible);
   const enabled = (el) => !el.disabled && el.getAttribute("aria-disabled") !== "true" && !el.closest("[inert]");
   // Keep only the outer interactive element if Facebook wraps a button in another button.
-  const buttons = (scope) => cardElements(scope, controls).filter((el, _i, list) => !list.some((other) => other !== el && other.contains(el)));
+  const buttons = (scope) => cardElements(scope, controls).filter((el) => {
+    const parent = el.parentElement?.closest(controls);
+    return !parent || !scope.contains(parent);
+  });
+  function findScrollArea(start) {
+    for (let node = start; node && node !== document.body; node = node.parentElement) {
+      if (node.clientHeight > 0 && /auto|scroll|overlay/.test(getComputedStyle(node).overflowY)) return node;
+    }
+    return document.scrollingElement;
+  }
   function hash(text) {
     let value = 2166136261;
     for (let i = 0; i < text.length; i++) value = Math.imul(value ^ text.charCodeAt(i), 16777619);
@@ -74,7 +84,7 @@
       // The smallest ancestor with its own content link and exactly one action group
       // is the card. Do not promote a card to the entire feed.
       while (card && card !== scope) {
-        if (adds.filter((other) => card.contains(other)).length !== 1) break;
+        if (buttons(card).filter((other) => collectionNames.has(name(other))).length !== 1) break;
         if (cardElements(card, 'a[href]').some((el) => !group.contains(el))) {
           return { element: card, more, key: identity(card, group) };
         }
@@ -85,10 +95,13 @@
     if (new Set(result.map((card) => card.key)).size !== result.length) {
       throw new Error("Hay tarjetas con identidades ambiguas. Revisa la lista antes de eliminar.");
     }
+    if (result.length) scrollArea = findScrollArea(result.at(-1).element.parentElement);
     return result;
   }
   function loading() {
-    return all(assertPage(), '[role="progressbar"],[aria-busy="true"],[data-visualcompletion="loading-state"]').length > 0;
+    const scope = assertPage();
+    return scope.getAttribute("aria-busy") === "true" ||
+      all(scope, '[role="progressbar"],[aria-busy="true"],[data-visualcompletion="loading-state"]').length > 0;
   }
   const openMenus = () => all(document, menusSelector);
   function inspect() {
@@ -134,11 +147,8 @@
   }
   function scrollMore() {
     const scope = assertPage();
-    const last = cards().at(-1)?.element || scope;
-    let scroll = last.parentElement;
-    while (scroll && scroll !== document.body && !(scroll.scrollHeight > scroll.clientHeight + 2 &&
-      /auto|scroll|overlay/.test(getComputedStyle(scroll).overflowY))) scroll = scroll.parentElement;
-    if (!scroll || scroll === document.body) scroll = document.scrollingElement;
+    cards(); // Refresh the remembered container before the final card disappears.
+    const scroll = scrollArea?.isConnected ? scrollArea : findScrollArea(scope);
     if (!scroll) throw new Error("No se pudo reconocer el área desplazable de Guardados.");
     scroll.scrollBy({ top: Math.max(400, scroll.clientHeight * 0.85), behavior: "instant" });
   }

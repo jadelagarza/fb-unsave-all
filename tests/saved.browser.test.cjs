@@ -50,6 +50,21 @@ async function setup(t, fixtureOptions = {}, url = 'https://www.facebook.com/sav
 }
 
 describe('Saved page extension fixtures', { concurrency: 3 }, () => {
+  test('busy state on the main container prevents starting a deletion', { timeout: 10000 }, async (t) => {
+    const h = await setup(t, { rootBusy: true });
+    const inspection = (await h.request('inspect')).inspection;
+    assert.equal(inspection.loading, true);
+    assert.equal(inspection.ready, false);
+    assert.equal((await h.start()).ok, false);
+    assert.equal((await h.events()).filter((e) => e.type === 'delete').length, 0);
+  });
+  test('scroll discovery uses the internal feed container after its last card disappears', { timeout: 40000 }, async (t) => {
+    const h = await setup(t, { moreOnScroll: true, nestedScroll: true });
+    assert.equal((await h.start({ maxItems: 4 })).ok, true);
+    const run = await h.untilStatus('finished', 35000);
+    assert.equal(run.processed, 4);
+    assert.ok((await h.events()).some((e) => e.type === 'loaded'));
+  });
   test('removes one at a time, survives full rerenders, waits the custom interval and scrolls for more', { timeout: 40000 }, async (t) => {
     const h = await setup(t, { moreOnScroll: true });
     assert.equal((await h.request('inspect')).inspection.loaded, 3);

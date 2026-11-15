@@ -17,6 +17,12 @@ module.exports = function fixture(options = {}) {
   const main=document.querySelector('main');
   const feed=document.getElementById('feed');
   const busy=document.getElementById('loading');
+  if(options.rootBusy)main.setAttribute('aria-busy','true');
+  if(options.nestedScroll){
+    const container=document.createElement('div');container.id='scroll-area';
+    container.style.cssText='height:500px;overflow-y:auto';main.before(container);container.append(main);
+    document.documentElement.style.overflow='hidden';
+  }
   function render(){
     feed.innerHTML=ids.map(id=>'<article><a href="/posts/saved-'+id+'">Saved item '+id+'</a><div class="actions"><button data-add="'+id+'">Agregar a colección</button><button data-share="'+id+'" aria-label="Compartir">↗</button><button data-more="'+id+'" '+(options.unlabelled?'':'aria-label="Más opciones" aria-haspopup="menu"')+'><svg aria-hidden="true"><circle cx="3" cy="10" r="2"/><circle cx="10" cy="10" r="2"/><circle cx="17" cy="10" r="2"/></svg></button></div></article>').join('');
     document.getElementById('empty').hidden=ids.length>0||loading;
@@ -41,7 +47,8 @@ module.exports = function fixture(options = {}) {
     if(options.hiddenMain)main.setAttribute('aria-hidden','true');
   }
   document.getElementById('decoy').onclick=()=>record('wrong-action');
-  addEventListener('scroll',()=>{
+  const scrollTarget=options.nestedScroll?document.getElementById('scroll-area'):window;
+  scrollTarget.addEventListener('scroll',()=>{
     record('scroll');
     if(queued.length&&deleted>=(options.initial||3)&&!loading){
       loading=true;busy.hidden=false;render();
