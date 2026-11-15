@@ -4,7 +4,7 @@
 
 FB Unsave All is a local Chrome extension that clears your Facebook saved items using the batch controls in Activity Log. It reloads the tab **only after deletion completion has been verified**, the dialog has closed, selection has reset, and the resulting UI has remained stable for 1.5 seconds. It resumes after that reload.
 
-**Version 0.1.3 is pending full verification of the corrected cycle on a real Facebook account.** It recognizes the actual empty-state message «No hay nada para mostrar» and can verify completion when a spinner was not observable. An empty view before reload only ends the current batch; the reloaded page must confirm whether more batches remain. Automated tests use simulated pages and do not establish compatibility with every Facebook rollout.
+**Version 0.1.4 is pending full verification of the corrected cycle on a real Facebook account.** It distinguishes the 4px navigation bar from a blocking deletion spinner, recognizes decorative SVG/animated loading overlays, and supports stale rows that only update after reload. Each batch is counted only after verification on the fresh page. Automated tests use simulated pages and do not establish compatibility with every Facebook rollout.
 
 ## Install
 
@@ -36,14 +36,14 @@ Keep the extracted directory in place. This project is not currently published o
 
 Once the trial works, start a new run with a suitable batch limit. Roughly 1,500 saved items at 20 per batch require 75 batches. A limit of 100 leaves room; the run stops early if Facebook explicitly reports an empty list. The selected batch size comes from Facebook and is not hard-coded to 20.
 
-The batch limit accepts 1–500; the pause accepts 3–3,600 seconds. These are workload controls, **not Meta-approved safe automation thresholds**. Counters reset for each new run. The processed-item count reflects the selection counter and the observed evidence of batch completion, not server-certified deletion.
+The batch limit accepts 1–500; the pause accepts 3–3,600 seconds. These are workload controls, **not Meta-approved safe automation thresholds**. Counters reset for each new run. A pending batch is counted only after the fresh page confirms progress or an empty list. This is UI verification, not server-certified deletion.
 
 ## Stopping and failures
 
 - Click **Detener ejecución** to stop subsequent actions, or close the authorized Facebook tab. A deletion already confirmed cannot be cancelled or undone by this tool.
-- If no loader is observed, completion requires either the disappearance of all captured selected items or an explicit empty state with no item checkboxes. Selection must reset, deletion controls must be inactive, and the resulting UI must remain stable for 1.5 seconds. Merely clearing selection is not sufficient.
+- If no loader is observed, a verification reload is allowed after captured items disappear, an explicit empty state appears, or selection resets and All becomes available without an intercepting overlay. The dialog must be closed, deletion controls inactive, and the resulting UI stable for 1.5 seconds. A restored checkbox does not certify deletion: the fresh page must confirm progress before counting the batch or submitting another deletion.
 - If neither loading nor verifiable completion can be established within 15 seconds, or completion does not follow within 90 seconds after observing loading, the extension stops without a blind reload or retry.
-- A global fixed-position loading overlay is monitored as well. Its presence in the DOM alone does not mean it is still loading: CSS-hidden, fully transparent, detached, or ancestor-hidden indicators are considered invisible. The popup distinguishes waiting for an indicator from an indicator that has already been detected.
+- Blocking visual loading overlays are monitored even when the spinner is decorative and has no accessible loading label. The 4px navigation progressbar is excluded. CSS-hidden, fully transparent, detached, or ancestor-hidden indicators are considered invisible. A blocking overlay prevents verification reloads even if selection resets early.
 - Unrecognized or ambiguous controls, a recognized error or security challenge, a pre-existing selection, or an unchanged list after reload stops the run.
 - Missing controls alone do not count as an empty list. «No hay nada para mostrar» is recognized even if a disabled All checkbox remains. An empty view before reload does not finish the run: it reloads to check for more batches and only finishes as empty after that fresh check.
 - An unexpected manual reload during a pending batch blocks automatic resumption. Inspect the outcome before starting again.

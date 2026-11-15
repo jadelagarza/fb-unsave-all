@@ -1,13 +1,16 @@
 module.exports = function fixture(mode = 'normal', options = {}) {
-  const globalOverlay = mode.startsWith('global-overlay');
-  const overlay = '<div id="overlay-root"><div id="loader" role="progressbar" aria-valuetext="Cargando..." tabindex="0"><div></div></div></div>';
+  const visualOverlay = mode.startsWith('visual-overlay');
+  const globalOverlay = mode.startsWith('global-overlay') || visualOverlay;
+  const overlay = visualOverlay ? '<div id="overlay-root"><div id="loader" aria-hidden="true"><svg aria-hidden="true" width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="none" stroke="#1877f2" stroke-width="3" stroke-dasharray="70 40"/></svg></div></div>' : '<div id="overlay-root"><div id="loader" role="progressbar" aria-valuetext="Cargando..." tabindex="0"><div></div></div></div>';
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Saved items fixture</title>
   <style>
   #overlay-root { position:relative; }
   #overlay-root #loader { display:none; opacity:0; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1000; }
   #overlay-root #loader.active { display:flex; opacity:1; }
   #overlay-root #loader > div { width:32px; height:32px; border:3px solid #1877f2; border-top-color:transparent; border-radius:50%; margin:auto; }
+  #overlay-root #loader > svg { width:40px; height:40px; margin:auto; }
   </style></head><body>
+  ${options.navigationProgress ? '<div role="progressbar" aria-valuetext="Cargando..." style="position:fixed;top:0;left:0;width:100%;height:4px;background:blue"></div>' : ''}
   <main><h1>${mode === 'wrong-category' ? 'Tus publicaciones' : 'Tus elementos guardados'}</h1><div id="list"></div>${globalOverlay ? '' : '<div id="loader" role="progressbar" aria-label="Cargando..." hidden></div>'}</main>
   ${globalOverlay ? overlay : ''}
   <div id="dialog" role="dialog" aria-label="Eliminar elementos guardados" hidden>
@@ -60,11 +63,17 @@ module.exports = function fixture(mode = 'normal', options = {}) {
     log('loading-end');
   }
   function finishDeletion() {
+    const oldRemaining=remaining;
     if (mode !== 'no-progress' && mode !== 'no-loader' && mode !== 'no-loader-transient-empty') remaining=Math.max(0,remaining-batchSize);
     sessionStorage.setItem('remaining',remaining);
     batchViewEmpty = options.emptyUntilReload === true;
     if (mode === 'no-loader-transient-empty') batchViewEmpty=true;
-    render();
+    if(options.staleRowsUntilReload) {
+      const persistedRemaining=remaining;
+      remaining=oldRemaining;
+      render();
+      remaining=persistedRemaining;
+    } else render();
     log('deletion-finished');
     if (mode === 'no-loader-transient-empty') setTimeout(()=>{batchViewEmpty=false;render();log('transient-empty-ended');},400);
     if (options.optimisticRevert === true) sessionStorage.setItem('remaining',initialRemaining);
@@ -85,10 +94,13 @@ module.exports = function fixture(mode = 'normal', options = {}) {
       log('loading-start');
     }
     if (mode === 'security') { const alert=document.createElement('div');alert.setAttribute('role','alert');alert.textContent='Confirma tu identidad';document.body.append(alert); }
-    if(mode !== 'stuck-loader' && mode !== 'global-overlay-stuck') setTimeout(()=>{
+    if(options.earlySelectionReset) finishDeletion();
+    if(mode !== 'stuck-loader' && !mode.endsWith('-stuck')) setTimeout(()=>{
       endLoading();
-      if (options.selectionResetDelay) setTimeout(finishDeletion, options.selectionResetDelay);
-      else finishDeletion();
+      if (!options.earlySelectionReset) {
+        if (options.selectionResetDelay) setTimeout(finishDeletion, options.selectionResetDelay);
+        else finishDeletion();
+      }
     },options.loadingDuration ?? 200);
   };
   </script></body></html>`;

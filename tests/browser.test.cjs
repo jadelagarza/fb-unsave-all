@@ -133,12 +133,14 @@ test('selected-item disappearance can verify a missed spinner while other rows r
   assert.equal((await h.events()).filter(event=>event.event==='page-load').length,3);
 });
 
-test('a brief empty view without a loader is not enough to trigger a reload', { timeout: 25000 }, async (t) => {
+test('a brief empty view never finishes the run or repeats a deletion; a verification reload blocks unchanged data', { timeout: 25000 }, async (t) => {
   const h=await setup(t,'no-loader-transient-empty');
   assert.equal((await h.request('start',{acknowledged:true,maxBatches:2,delaySeconds:3})).ok,true);
   const run=await h.untilStatus('blocked');
-  assert.match(run.message,/resultado verificable/);
-  assert.equal((await h.events()).filter(event=>event.event==='page-load').length,1);
+  assert.match(run.message,/sigue igual/);
+  assert.equal(run.processed,0);
+  assert.equal((await h.events()).filter(event=>event.event==='page-load').length,2);
+  assert.equal((await h.events()).filter(event=>event.event==='confirm-delete').length,1);
 });
 
 test('a completed loader still waits for the selected rows and toolbar to reset before reloading', { timeout: 18000 }, async (t) => {
@@ -156,7 +158,66 @@ test('a failed deletion restored by reload blocks before submitting the same bat
   assert.equal((await h.request('start',{acknowledged:true,maxBatches:2,delaySeconds:3})).ok,true);
   const run=await h.untilStatus('blocked',10000);
   assert.match(run.message,/sigue igual/);
+  assert.equal(run.batches,0);
+  assert.equal(run.processed,0);
   assert.equal((await h.events()).filter(event=>event.event==='confirm-delete').length,1);
+});
+
+test('five decorative-spinner batches keep stale rows until reload and continue without repeating items', { timeout: 55000 }, async (t) => {
+  const h=await setup(t,'visual-overlay',{initialRemaining:110,staleRowsUntilReload:true,navigationProgress:true,loadingDuration:500});
+  const inspection=await h.request('inspect');
+  assert.equal(inspection.ok,true,inspection.error);
+  assert.equal(inspection.inspection.loading,false,'the 4px navigation bar is not a deletion loader');
+  assert.equal((await h.request('start',{acknowledged:true,maxBatches:5,delaySeconds:3})).ok,true);
+  const run=await h.untilStatus('finished',50000);
+  assert.equal(run.lastCompletionKind,'loading','detect the painted aria-hidden ring without progressbar metadata');
+  assert.equal(run.batches,5);
+  assert.equal(run.processed,100);
+  const events=await h.events();
+  const confirmations=events.filter(event=>event.event==='confirm-delete');
+  const loads=events.filter(event=>event.event==='page-load');
+  assert.equal(confirmations.length,5);
+  assert.equal(loads.length,6);
+  assert.equal(new Set(confirmations.flatMap(event=>event.items)).size,100);
+  for(let index=0;index<5;index++) assert.ok(loads[index+1].at>=events.filter(event=>event.event==='loading-end')[index].at+1400);
+});
+
+test('unknown loading with stale rows uses readiness for one verification reload per batch and counts fresh results', { timeout: 25000 }, async (t) => {
+  const h=await setup(t,'no-loader-completed',{initialRemaining:60,staleRowsUntilReload:true,navigationProgress:true});
+  assert.equal((await h.request('start',{acknowledged:true,maxBatches:2,delaySeconds:3})).ok,true);
+  const run=await h.untilStatus('finished',20000);
+  assert.equal(run.lastCompletionKind,'readiness');
+  assert.equal(run.batches,2);
+  assert.equal(run.processed,40);
+  assert.equal((await h.events()).filter(event=>event.event==='page-load').length,3);
+});
+
+test('an early selection reset never permits reload while the decorative blocking spinner remains painted', { timeout: 15000 }, async (t) => {
+  const h=await setup(t,'visual-overlay',{initialRemaining:40,staleRowsUntilReload:true,earlySelectionReset:true,loadingDuration:1800});
+  assert.equal((await h.request('start',{acknowledged:true,maxBatches:1,delaySeconds:3})).ok,true);
+  const run=await h.untilStatus('finished',12000);
+  assert.equal(run.batches,1);
+  const events=await h.events();
+  const ended=events.find(event=>event.event==='loading-end');
+  const nextLoad=events.filter(event=>event.event==='page-load')[1];
+  assert.ok(nextLoad.at>=ended.at+1400);
+});
+
+test('a decorative spinner that never leaves prevents reload and any processed count', { timeout: 15000 }, async (t) => {
+  const h=await setup(t,'visual-overlay-stuck',{earlySelectionReset:true,staleRowsUntilReload:true});
+  assert.equal((await h.request('start',{acknowledged:true,maxBatches:2,delaySeconds:3})).ok,true);
+  const deadline=Date.now()+8000;
+  let run;
+  while(Date.now()<deadline) {
+    run=(await h.request('status')).run;
+    if(run?.message.startsWith('Carga detectada.')) break;
+    await new Promise(resolve=>setTimeout(resolve,100));
+  }
+  assert.match(run.message,/^Carga detectada\./);
+  await new Promise(resolve=>setTimeout(resolve,1800));
+  assert.equal((await h.events()).filter(event=>event.event==='page-load').length,1);
+  assert.equal((await h.request('status')).run.processed,0);
+  await h.request('stop');
 });
 
 test('installed extension rejects another activity-log category', { timeout: 15000 }, async (t) => {
@@ -205,12 +266,15 @@ test('installed extension does not use numbers or selection-like text from saved
   assert.equal((await h.events()).some((event) => event.event === 'confirm-delete'), false);
 });
 
-test('installed extension stops when there is no loading indicator and never reloads blindly', { timeout: 30000 }, async (t) => {
+test('installed extension verifies restored readiness once and blocks unchanged data without counting or repeating', { timeout: 30000 }, async (t) => {
   const h = await setup(t, 'no-loader');
   assert.equal((await h.request('start', { acknowledged: true, maxBatches: 100, delaySeconds: 3 })).ok, true);
   const run = await h.untilStatus('blocked');
-  assert.match(run.message, /No se observó/);
-  assert.equal((await h.events()).filter((event) => event.event === 'page-load').length, 1);
+  assert.match(run.message, /sigue igual/);
+  assert.equal(run.batches,0);
+  assert.equal(run.processed,0);
+  assert.equal((await h.events()).filter((event) => event.event === 'page-load').length, 2);
+  assert.equal((await h.events()).filter((event) => event.event === 'confirm-delete').length,1);
 });
 
 test('installed extension recognizes an unchanged list after a completed reload', { timeout: 20000 }, async (t) => {

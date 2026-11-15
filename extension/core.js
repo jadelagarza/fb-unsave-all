@@ -18,14 +18,17 @@
   const errorPattern = /no puedes usar esta funcion|te (?:hemos )?bloquea(?:mos|do) temporalmente|actividad sospechosa|confirma tu identidad|comprueba que eres tu|demasiadas solicitudes|vuelve a intentarlo mas tarde|esta pagina no esta disponible|se produjo un error|temporarily blocked|suspicious activity|confirm your identity|too many requests|try again later|something went wrong|this page isn't available/;
   let verifiedContext = null;
 
-  function visible(element) {
-    if (!element || !element.isConnected || element.closest('[hidden],[aria-hidden="true"]')) return false;
+  function visuallyVisible(element) {
+    if (!element || !element.isConnected || element.closest('[hidden]')) return false;
     if (element.getClientRects().length === 0) return false;
     for (let node = element; node; node = node.parentElement) {
       const style = getComputedStyle(node);
       if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse" || Number(style.opacity) === 0) return false;
     }
     return true;
+  }
+  function visible(element) {
+    return visuallyVisible(element) && !element.closest('[aria-hidden="true"]');
   }
   function name(element) {
     const labelledBy = element.getAttribute("aria-labelledby");
@@ -43,6 +46,9 @@
     return items[0];
   }
   function dialogs() { return elements(document, '[role="dialog"],[role="alertdialog"]'); }
+  function confirmationOpen() {
+    return dialogs().some((dialog) => buttons(dialog, cancelNames).length > 0 && buttons(dialog, deleteNames).length > 0);
+  }
   function main() { return unique(elements(document, 'main,[role="main"]'), "área principal"); }
   function checked(element) { return element.checked === true || element.getAttribute("aria-checked") === "true"; }
   function allCheckbox(scope) {
@@ -63,7 +69,7 @@
     if (headings.some((element) => titles.has(name(element))) && elements(document, 'main,[role="main"]').length === 1) {
       scope = main();
       verifiedContext = { url: url.href, scope };
-    } else if ((dialogs().length || globalLoadingIndicators().length) && verifiedContext?.url === url.href && verifiedContext.scope.isConnected &&
+    } else if ((dialogs().length || globalLoadingIndicators().length || blockingVisualIndicators().length) && verifiedContext?.url === url.href && verifiedContext.scope.isConnected &&
       Array.from(document.querySelectorAll(headingSelector)).some((element) => titles.has(name(element)))) {
       // Modals and global loading overlays can mark their background aria-hidden. Reuse only the saved-items
       // scope already verified in this exact document and URL; never authorize a new page here.
@@ -82,20 +88,65 @@
       /^(?:cargando|loading)(?:\.{3}|…)?$/.test(normalize(element.getAttribute("aria-valuetext") || name(element)));
   }
   function globalLoadingIndicators() {
-    // Facebook's real deletion loader is a fixed progressbar with aria-valuetext="Cargando..."
-    // outside both main and dialog. It remains in the DOM with display:none after completion.
+    // A fixed, 4px-high progressbar is Facebook's navigation bar, NOT the central deletion
+    // spinner. Never treat that bar as evidence of this deletion's loading cycle.
     return elements(document, '[role="progressbar"],[role="status"],[aria-busy="true"],[aria-valuetext],[data-visualcompletion="loading-state"]')
       .filter((element) => {
         if (!loadingSignal(element)) return false;
+        const rect = element.getBoundingClientRect();
+        if (rect.width < 8 || rect.height < 8) return false;
         for (let node = element; node && node !== document.body; node = node.parentElement) {
           if (getComputedStyle(node).position === "fixed") return true;
         }
         return false;
       });
   }
+  function interactionState() {
+    const scope = verifiedContext?.url === location.href && verifiedContext.scope.isConnected ? verifiedContext.scope : null;
+    const checkbox = scope && Array.from(scope.querySelectorAll('input[type="checkbox"],[role="checkbox"]'))
+      .find((element) => allNames.has(name(element)) && visuallyVisible(element));
+    if (!checkbox) return { ready: false, blocked: false, blocker: null };
+    const rect = checkbox.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    if (x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) return { ready: false, blocked: false, blocker: null };
+    const hit = document.elementFromPoint(x, y);
+    const label = checkbox.closest("label");
+    const intercepted = Boolean(hit && hit !== checkbox && !checkbox.contains(hit) && !(label && label.contains(hit)));
+    const disabled = checkbox.disabled || checkbox.getAttribute("aria-disabled") === "true" || Boolean(checkbox.closest("[inert]"));
+    return { ready: Boolean(hit) && !intercepted && !disabled, blocked: intercepted || disabled, blocker: intercepted ? hit : null };
+  }
+  function blockingVisualIndicators() {
+    const interaction = interactionState();
+    if (!interaction.blocker) return [];
+    const scope = verifiedContext.scope;
+    for (let overlay = interaction.blocker; overlay && overlay !== document.body; overlay = overlay.parentElement) {
+      if (overlay === scope || overlay.contains(scope)) break;
+      if (!visuallyVisible(overlay)) continue;
+      const style = getComputedStyle(overlay);
+      if (style.position !== "fixed" && style.position !== "absolute") continue;
+      const rect = overlay.getBoundingClientRect();
+      if (rect.width < innerWidth * 0.35 || rect.height < innerHeight * 0.35) continue;
+      // Identity dialogs and other interactive popups are not deletion loaders.
+      if (Array.from(overlay.querySelectorAll('button,[role="button"],a[href],input')).some(visible)) continue;
+      const graphics = Array.from(overlay.querySelectorAll('svg,div,span')).slice(0, 250);
+      const spinner = graphics.some((element) => {
+        if (!visuallyVisible(element)) return false;
+        const bounds = element.getBoundingClientRect();
+        if (bounds.width < 8 || bounds.height < 8 || bounds.width > 128 || bounds.height > 128) return false;
+        const computed = getComputedStyle(element);
+        const animated = computed.animationName !== "none" && parseFloat(computed.animationDuration) > 0;
+        const ring = element.tagName.toLowerCase() === "svg" && Array.from(element.querySelectorAll("circle,path"))
+          .some((shape) => getComputedStyle(shape).stroke !== "none" && parseFloat(getComputedStyle(shape).strokeWidth) > 0);
+        return ring || animated;
+      });
+      if (spinner) return [overlay];
+    }
+    return [];
+  }
   function loadingIndicators() {
     const scopes = [...elements(document, 'main,[role="main"]'), ...dialogs()];
-    const indicators = new Set(globalLoadingIndicators());
+    const indicators = new Set([...globalLoadingIndicators(), ...blockingVisualIndicators()]);
     for (const scope of scopes) {
       if (scope.getAttribute("aria-busy") === "true") indicators.add(scope);
       for (const element of elements(scope, '[role="progressbar"],[aria-busy="true"],[aria-label],[aria-valuetext],[data-visualcompletion="loading-state"]')) {
@@ -187,7 +238,7 @@
     const currentKeys = new Set(items.map((checkbox) => itemKey(checkbox, scope)).filter(Boolean));
     const itemsRemoved = Boolean(snapshot?.allCaptured && snapshot.keys.length &&
       snapshot.keys.every((key) => !currentKeys.has(key)) && items.length > 0 && selectionCleared);
-    return { selectionCleared, empty, itemsRemoved, fingerprint: fingerprint(scope) };
+    return { selectionCleared, empty, itemsRemoved, interactionReady: interactionState().ready, fingerprint: fingerprint(scope) };
   }
   function ready() {
     const scope = assertPage();
@@ -224,6 +275,6 @@
       heading: "Tus elementos guardados / Your saved items"
     };
   }
-  root.FBUnsave = Object.freeze({ normalize, visible, name, buttons, unique, dialogs, checked,
-    assertPage, isLoading, selectedCount, fingerprint, captureDeletion, deletionState, ready, toolbarDelete, confirmationDelete, inspect });
+  root.FBUnsave = Object.freeze({ normalize, visible, name, buttons, unique, dialogs, confirmationOpen, checked,
+    assertPage, isLoading, interactionState, selectedCount, fingerprint, captureDeletion, deletionState, ready, toolbarDelete, confirmationDelete, inspect });
 })(globalThis);

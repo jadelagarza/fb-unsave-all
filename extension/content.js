@@ -45,16 +45,19 @@
   }
   function loadingTracker() {
     let observed = false;
+    let blockedObserved = false;
     let idleSince = 0;
     function sample() {
       if (dom.isLoading()) { observed = true; idleSince = 0; }
       else if (observed && !idleSince) idleSince = Date.now();
+      // Ignore the confirmation dialog itself; track a NEW blocked interaction after it closes.
+      if (!dom.confirmationOpen() && dom.interactionState().blocked) blockedObserved = true;
     }
     const observer = new MutationObserver(sample);
     observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true,
       attributeFilter: ["style", "class", "hidden", "aria-hidden", "aria-busy", "aria-label", "aria-valuetext", "data-visualcompletion", "role"] });
     sample();
-    return { sample, get observed() { return observed; },
+    return { sample, get observed() { return observed; }, get blockedObserved() { return blockedObserved; },
       settled: () => observed && idleSince > 0 && Date.now() - idleSince >= 1500,
       disconnect: () => observer.disconnect() };
   }
@@ -68,27 +71,30 @@
       alive();
       dom.assertPage();
       tracker.sample();
-      if (tracker.observed && !announcedLoading) {
+      if ((tracker.observed || tracker.blockedObserved) && !announcedLoading) {
         completionDeadline = Date.now() + 90000;
         announcedLoading = true;
-        await phase(run, "waiting", "Carga detectada. Esperando a que termine la eliminación…");
+        await phase(run, "waiting", "Carga detectada. Esperando a que la página vuelva a estar disponible…");
       }
       if (dom.isLoading() || dom.dialogs().length) {
         evidenceKey = null;
         evidenceSince = 0;
       } else {
         const state = dom.deletionState(snapshot);
-        const kind = tracker.observed ? (state.selectionCleared ? "loading" : null) :
-          state.empty ? "empty" : state.itemsRemoved ? "items-removed" : null;
+        const kind = tracker.observed ? (state.selectionCleared && (state.interactionReady || state.empty) ? "loading" : null) :
+          state.empty ? "empty" : state.itemsRemoved ? "items-removed" :
+            state.selectionCleared && state.interactionReady ? "readiness" : null;
         const key = kind && `${kind}:${state.fingerprint}`;
         if (!kind || key !== evidenceKey) { evidenceKey = key; evidenceSince = kind ? Date.now() : 0; }
         if (kind && evidenceSince && Date.now() - evidenceSince >= 1500 && (!tracker.observed || tracker.settled())) {
-          return { completionKind: kind, loadingObserved: tracker.observed, evidenceVerified: true };
+          return { completionKind: kind, loadingObserved: tracker.observed, evidenceVerified: true,
+            interactionCycleObserved: tracker.blockedObserved,
+            selectionResetObserved: state.selectionCleared, interactionReady: state.interactionReady };
         }
       }
       await pause(100);
     }
-    if (!tracker.observed) {
+    if (!tracker.observed && !tracker.blockedObserved) {
       throw new Error("No se observó el indicador de carga ni un resultado verificable de la eliminación. No se recargará ni repetirá el lote; revisa la página manualmente.");
     }
     throw new Error("La carga, el diálogo o la selección no terminaron de restablecerse. No se recargará la página.");
@@ -106,7 +112,7 @@
       if (run.awaitingVerification && !state.empty && state.fingerprint === run.lastFingerprint) {
         throw new Error("La lista sigue igual después de recargar. No se repetirá una eliminación cuyo resultado es incierto.");
       }
-      await phase(run, "verifying", "Lista comprobada después de cargar.");
+      run = await phase(run, "verifying", "Lista comprobada después de cargar.");
       if (state.empty) {
         await send("finish", { id: run.id, text: "Facebook muestra que no quedan elementos guardados. Comprueba también la pantalla Guardados." });
         return;

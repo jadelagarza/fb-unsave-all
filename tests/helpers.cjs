@@ -86,10 +86,12 @@ async function contentHarness(options = {}) {
     checked: () => state.checked,
     selectedCount: () => state.selected,
     dialogs: () => state.dialog ? [{}] : [],
+    confirmationOpen: () => state.dialog,
     isLoading: () => state.loading,
+    interactionState: () => ({ready:!state.loading && !state.dialog,blocked:state.loading || state.dialog}),
     captureDeletion: () => ({ keys: ['fixture-item'], allCaptured: true }),
     deletionState: () => ({ selectionCleared: !state.checked && state.selected === 0,
-      empty: state.empty, itemsRemoved: Boolean(state.verifiedRemoval), fingerprint: state.fingerprint }),
+      empty: state.empty, itemsRemoved: Boolean(state.verifiedRemoval), interactionReady:!state.loading && !state.dialog, fingerprint: state.fingerprint }),
     toolbarDelete: () => ({ click() { state.dialog = true; record('open-confirmation'); } }),
     confirmationDelete: () => {
       if (!state.dialog) throw new Error('Missing confirmation');

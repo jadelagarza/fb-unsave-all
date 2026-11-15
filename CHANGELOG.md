@@ -1,5 +1,13 @@
 # Cambios
 
+## 0.1.4 — 14 de noviembre de 2026
+
+- Corrige una identificación equivocada: la barra global de 4px en la parte superior no es el círculo central de eliminación.
+- Reconoce capas visuales que interceptan Todo y contienen un anillo SVG o una animación de carga, incluso si son decorativos y no tienen etiquetas accesibles.
+- Permite una recarga de verificación al restablecerse la selección y la interacción, aunque Facebook conserve las filas antiguas hasta recargar.
+- Mantiene el lote pendiente hasta verificar progreso en el documento nuevo. No aumenta contadores ni inicia otro lote si reaparece la misma lista.
+- Añade pruebas de cinco lotes con filas desactualizadas, anillo decorativo, barra superior visible y selección restablecida antes de desaparecer la capa.
+
 ## 0.1.3 — 14 de noviembre de 2026
 
 - Reconoce «No hay nada para mostrar», incluso con la casilla Todo visible y deshabilitada.

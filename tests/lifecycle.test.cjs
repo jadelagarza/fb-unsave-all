@@ -9,11 +9,14 @@ test('a batch waits for loading to end, then reloads once and persists progress'
   assert.deepEqual(h.events.map((event) => event.type), ['select', 'open-confirmation', 'confirm-delete', 'loading-start', 'loading-end']);
   const ended = h.events.find((event) => event.type === 'loading-end').at;
   assert.ok(h.bg.reloads[0].at >= ended + 1500, 'reload must follow a stable disappearance of the loader');
-  assert.equal(h.bg.run.batches, 1);
-  assert.equal(h.bg.run.processed, 20);
+  assert.equal(h.bg.run.batches, 0, 'count only after verification on the fresh page');
+  assert.equal(h.bg.run.processed, 0);
+  assert.equal(h.bg.run.pendingSelected, 20);
   assert.equal(h.bg.run.phase, 'reloading');
   h.reloadDocument();
   await h.clock.until(() => h.bg.run.status === 'finished');
+  assert.equal(h.bg.run.batches, 1);
+  assert.equal(h.bg.run.processed, 20);
   assert.match(h.bg.run.message, /límite/);
   assert.equal(h.events.filter((event) => event.type === 'confirm-delete').length, 1);
 });
@@ -24,20 +27,25 @@ test('multiple batches resume only after reload, then finish on an explicit empt
   await h.clock.until(() => h.bg.reloads.length === 1);
   h.reloadDocument();
   await h.clock.until(() => h.bg.reloads.length === 2);
-  assert.equal(h.bg.run.processed, 40);
+  assert.equal(h.bg.run.processed, 20);
   h.setState({ empty: true });
   h.reloadDocument();
   await h.clock.until(() => h.bg.run.status === 'finished');
+  assert.equal(h.bg.run.processed, 40);
   assert.match(h.bg.run.message, /no quedan/);
   assert.equal(h.bg.reloads.length, 2);
 });
 
-test('a loader that never appears blocks without reload or repeated deletion', async () => {
-  const h = await contentHarness({ noLoader: true });
+test('unobservable loading allows one readiness verification reload, then unchanged data blocks without repetition', async () => {
+  const h = await contentHarness({ noLoader: true, noProgress: true });
   await h.start();
+  await h.clock.until(() => h.bg.reloads.length === 1);
+  assert.equal(h.bg.run.processed, 0);
+  h.reloadDocument();
   await h.clock.until(() => h.bg.run.status === 'blocked');
-  assert.match(h.bg.run.message, /No se observó/);
-  assert.equal(h.bg.reloads.length, 0);
+  assert.match(h.bg.run.message, /sigue igual/);
+  assert.equal(h.bg.reloads.length, 1);
+  assert.equal(h.bg.run.processed, 0);
   assert.equal(h.events.filter((event) => event.type === 'confirm-delete').length, 1);
 });
 
@@ -128,9 +136,10 @@ test('a missed spinner with stable explicit empty evidence still reloads and com
   await h.start(1);
   await h.clock.until(()=>h.bg.reloads.length===1);
   assert.equal(h.bg.run.lastCompletionKind,'empty');
-  assert.equal(h.bg.run.processed,20);
+  assert.equal(h.bg.run.processed,0);
   h.reloadDocument();
   await h.clock.until(()=>h.bg.run.status==='finished');
+  assert.equal(h.bg.run.processed,20);
   assert.match(h.bg.run.message,/no quedan/);
   assert.equal(h.bg.reloads.length,1);
 });
@@ -142,11 +151,13 @@ test('two missed-spinner batches continue only after each verified removal and r
   assert.equal(h.bg.run.lastCompletionKind,'items-removed');
   h.reloadDocument();
   await h.clock.until(()=>h.bg.reloads.length===2);
-  assert.equal(h.bg.run.batches,2);
-  assert.equal(h.bg.run.processed,40);
+  assert.equal(h.bg.run.batches,1);
+  assert.equal(h.bg.run.processed,20);
   h.setState({empty:true});
   h.reloadDocument();
   await h.clock.until(()=>h.bg.run.status==='finished');
+  assert.equal(h.bg.run.batches,2);
+  assert.equal(h.bg.run.processed,40);
   assert.equal(h.events.filter(event=>event.type==='confirm-delete').length,2);
 });
 

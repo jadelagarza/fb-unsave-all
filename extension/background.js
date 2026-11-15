@@ -89,7 +89,14 @@ async function handle(message, sender) {
       update.pendingSelected = message.selected;
       update.lastFingerprint = String(message.fingerprint);
     }
-    if (message.phase === "verifying") update.awaitingVerification = false;
+    if (message.phase === "verifying") {
+      if (run.awaitingVerification && run.pendingSelected > 0) {
+        update.batches = run.batches + 1;
+        update.processed = run.processed + run.pendingSelected;
+        update.pendingSelected = 0;
+      }
+      update.awaitingVerification = false;
+    }
     return { run: await write(update) };
   }
   if (message.type === "finish" || message.type === "fail") {
@@ -98,12 +105,12 @@ async function handle(message, sender) {
   if (message.type === "reload") {
     const validCompletion = message.evidenceVerified === true &&
       ((message.completionKind === "loading" && message.loadingObserved === true) ||
-       message.completionKind === "empty" || message.completionKind === "items-removed");
+       message.completionKind === "empty" || message.completionKind === "items-removed" ||
+       (message.completionKind === "readiness" && message.selectionResetObserved === true && message.interactionReady === true));
     if (run.phase !== "waiting" || run.pendingSelected < 1 || !validCompletion) throw new Error("Recarga rechazada: no se ha verificado el fin de la eliminación.");
-    await write({ ...run, phase: "reloading", batches: run.batches + 1,
-      processed: run.processed + run.pendingSelected, pendingSelected: 0,
+    await write({ ...run, phase: "reloading",
       awaitingVerification: true, lastCompletionKind: message.completionKind,
-      notBefore: Date.now() + run.delayMs, message: "Eliminación finalizada. Recargando para verificar y cargar el siguiente lote…" });
+      notBefore: Date.now() + run.delayMs, message: "Página disponible. Recargando para verificar la eliminación antes de continuar…" });
     try { await chrome.tabs.reload(run.tabId, { bypassCache: false }); }
     catch (error) {
       const latest = await read();
