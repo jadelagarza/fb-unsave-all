@@ -41,7 +41,7 @@
         dom.scrollMore();
         const deadline = Date.now() + 2500;
         const loadingDeadline = Date.now() + 30000;
-        while (Date.now() < deadline || dom.loading()) {
+        while (Date.now() < deadline || dom.moreLoading()) {
           await check();
           if (Date.now() >= loadingDeadline) throw new Error("Facebook sigue cargando más tarjetas. Se detuvo para revisión.");
           const next = await discover();

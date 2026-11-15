@@ -7,6 +7,8 @@
   const controls = 'button,[role="button"]';
   const collectionNames = new Set(["agregar a coleccion", "agregar a la coleccion", "anadir a coleccion", "anadir a la coleccion", "add to collection"]);
   const moreNames = new Set(["mas", "mas opciones", "opciones", "more", "more options", "options", "menu"]);
+  const shareNames = new Set(["compartir", "share"]);
+  const actionNames = new Set([...collectionNames, ...moreNames, ...shareNames]);
   const deleteNames = new Set(["eliminar", "delete", "quitar de guardados", "eliminar de guardados", "unsave", "remove from saved"]);
   const headings = new Set(["guardado", "guardados", "elementos guardados", "tus elementos guardados", "saved", "saved items", "your saved items"]);
   const menusSelector = '[role="menu"],[role="listbox"]';
@@ -31,7 +33,14 @@
     for (let i = 0; i < text.length; i++) value = Math.imul(value ^ text.charCodeAt(i), 16777619);
     return (value >>> 0).toString(16);
   }
-  const collectionControls = (scope) => buttons(scope).filter((el) => collectionNames.has(name(el)));
+  function actionName(element) {
+    const label = name(element);
+    // Real Saved cards append ", <post title>" to the accessible control name.
+    // Strip that context only for known card actions, never for Delete menu items.
+    const prefix = label.split(",", 1)[0].trim();
+    return actionNames.has(prefix) ? prefix : label;
+  }
+  const collectionControls = (scope) => buttons(scope).filter((el) => collectionNames.has(actionName(el)));
   function narrowestScope(candidates) {
     const inner = candidates.filter(({ scope }) => !candidates.some((other) => other.scope !== scope && scope.contains(other.scope)));
     if (inner.length !== 1) {
@@ -89,13 +98,13 @@
   function actionGroup(add, scope) {
     for (let group = add.parentElement; group && group !== scope; group = group.parentElement) {
       const list = buttons(group);
-      if (list.filter((el) => collectionNames.has(name(el))).length !== 1) break;
-      const more = list.filter((el) => el !== add && (moreNames.has(name(el)) || el.getAttribute("aria-haspopup") === "menu") && !/compartir|share/.test(name(el)));
+      if (list.filter((el) => collectionNames.has(actionName(el))).length !== 1) break;
+      const more = list.filter((el) => el !== add && (moreNames.has(actionName(el)) || el.getAttribute("aria-haspopup") === "menu") && !shareNames.has(actionName(el)));
       if (more.length === 1) return { group, more: more[0] };
       // The observed layout is Add to collection, Share, More. Only open the third
       // button in that exact three-button group; deletion still requires a scoped menu.
-      if (list.length === 3 && list[0] === add && !/compartir|share/.test(name(list[2])) &&
-          (!name(list[2]) || moreNames.has(name(list[2])))) return { group, more: list[2] };
+      if (list.length === 3 && list[0] === add && !shareNames.has(actionName(list[2])) &&
+          (!name(list[2]) || moreNames.has(actionName(list[2])))) return { group, more: list[2] };
     }
     throw new Error("No se pudo aislar el menú de tres puntos de una tarjeta. No se hará clic.");
   }
@@ -134,10 +143,32 @@
     if (result.length) scrollArea = findScrollArea(result.at(-1).element.parentElement);
     return result;
   }
+  function loadingIndicators(scope) {
+    return all(scope, '[role="progressbar"],[aria-busy="true"],[data-visualcompletion="loading-state"]');
+  }
+  function footerLoaders(scope) {
+    const adds = collectionControls(scope);
+    return loadingIndicators(scope).filter((el) => {
+      if (!el.matches('[role="status"][data-visualcompletion="loading-state"]') ||
+          el.getAttribute("aria-busy") === "true" || !/^(?:cargando|loading)(?:\.{3}|…)?$/.test(name(el)) ||
+          el.querySelector('button,[role="button"],a[href],input')) return false;
+      // The real feed keeps a static loading sentinel AFTER its cards even while
+      // their controls are interactive. Fixed/absolute overlays are not that sentinel.
+      for (let node = el; node && node !== scope; node = node.parentElement) {
+        if (["fixed", "absolute"].includes(getComputedStyle(node).position)) return false;
+      }
+      return adds.every((add) => Boolean(add.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING));
+    });
+  }
   function loading() {
     const scope = assertPage();
+    const footer = new Set(footerLoaders(scope));
     return Boolean(scope.closest('[aria-busy="true"]')) ||
-      all(scope, '[role="progressbar"],[aria-busy="true"],[data-visualcompletion="loading-state"]').length > 0;
+      loadingIndicators(scope).some((el) => !footer.has(el));
+  }
+  function moreLoading() {
+    const scope = assertPage();
+    return Boolean(scope.closest('[aria-busy="true"]')) || loadingIndicators(scope).length > 0;
   }
   const openMenus = () => all(document, menusSelector);
   function inspect() {
@@ -181,7 +212,7 @@
     const explicitEmpty = hasEmptyMessage(scope);
     return { removed: !current.some((card) => card.key === key), ready: !loading() && !openMenus().length &&
       !all(document, '[role="dialog"],[role="alertdialog"]').length,
-      hasList: current.length > 0 || explicitEmpty, empty: current.length === 0 && explicitEmpty,
+      hasList: current.length > 0 || explicitEmpty || footerLoaders(scope).length > 0, empty: current.length === 0 && explicitEmpty,
       signature: current.map((card) => card.key).join(",") };
   }
   function scrollMore() {
@@ -191,5 +222,5 @@
     if (!scroll) throw new Error("No se pudo reconocer el área desplazable de Guardados.");
     scroll.scrollBy({ top: Math.max(400, scroll.clientHeight * 0.85), behavior: "instant" });
   }
-  globalThis.FBSaved = Object.freeze({ assertPage, cards, inspect, loading, openMenus, clickable, menuDelete, deletionState, scrollMore });
+  globalThis.FBSaved = Object.freeze({ assertPage, cards, inspect, loading, moreLoading, openMenus, clickable, menuDelete, deletionState, scrollMore });
 })();

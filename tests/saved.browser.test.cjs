@@ -50,6 +50,29 @@ async function setup(t, fixtureOptions = {}, url = 'https://www.facebook.com/sav
 }
 
 describe('Saved page extension fixtures', { concurrency: 3 }, () => {
+  test('observed Facebook labels with post context and dialog popup attributes recognize the actual three actions', { timeout: 15000 }, async (t) => {
+    const h = await setup(t, { realControls: true, nestedMain: true, singularHeading: true, footerLoading: true });
+    const result = await h.request('inspect');
+    assert.equal(result.ok, true, result.error);
+    assert.equal(result.inspection.loaded, 3);
+    assert.equal(result.inspection.loading, false);
+    assert.equal(result.inspection.ready, true);
+    assert.equal((await h.start({ maxItems: 2 })).ok, true);
+    assert.equal((await h.untilStatus('finished', 10000)).processed, 2);
+    const events = await h.events();
+    assert.deepEqual(events.filter((e) => e.type === 'delete').map((e) => e.id), [1, 2]);
+    assert.equal(events.filter((e) => e.type === 'wrong-action').length, 0);
+  });
+
+  test('the persistent footer sentinel permits verifying the last loaded card and scrolling to fetch more', { timeout: 40000 }, async (t) => {
+    const h = await setup(t, { realControls: true, nestedMain: true, footerLoading: true, moreOnScroll: true });
+    assert.equal((await h.start({ maxItems: 4 })).ok, true);
+    const run = await h.untilStatus('finished', 35000);
+    assert.equal(run.processed, 4);
+    const events = await h.events();
+    assert.ok(events.some((e) => e.type === 'loaded'));
+    assert.equal(events.filter((e) => e.type === 'wrong-action').length, 0);
+  });
   test('Guardado with two sibling mains recognizes the card feed and ignores collection controls elsewhere', { timeout: 15000 }, async (t) => {
     const h = await setup(t, { otherMain: true, unrelatedAdd: true, singularHeading: true });
     assert.equal(await h.page.locator('main,[role="main"]').count(), 2);

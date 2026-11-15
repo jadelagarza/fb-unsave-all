@@ -17,6 +17,12 @@ module.exports = function fixture(options = {}) {
   const main=document.querySelector('main');
   const feed=document.getElementById('feed');
   const busy=document.getElementById('loading');
+  let footer=null;
+  if(options.footerLoading){
+    footer=document.createElement('div');footer.setAttribute('role','status');
+    footer.setAttribute('data-visualcompletion','loading-state');footer.setAttribute('aria-label','Cargando...');
+    footer.style.cssText='height:176px;position:static';main.append(footer);
+  }
   if(options.singularHeading)document.querySelector('h1').textContent='Guardado';
   if(options.otherMain){
     const sidebar=document.createElement('aside');sidebar.setAttribute('role','main');
@@ -36,8 +42,22 @@ module.exports = function fixture(options = {}) {
     document.documentElement.style.overflow='hidden';
   }
   function render(){
-    feed.innerHTML=ids.map(id=>'<article><a href="/posts/saved-'+id+'">Saved item '+id+'</a><div class="actions"><button data-add="'+id+'">Agregar a colección</button><button data-share="'+id+'" aria-label="Compartir">↗</button><button data-more="'+id+'" '+(options.unlabelled?'':'aria-label="Más opciones" aria-haspopup="menu"')+'><svg aria-hidden="true"><circle cx="3" cy="10" r="2"/><circle cx="10" cy="10" r="2"/><circle cx="17" cy="10" r="2"/></svg></button></div></article>').join('');
-    document.getElementById('empty').hidden=ids.length>0||loading;
+    feed.innerHTML=ids.map(id=>{
+      const title='Demo '+id+', compartir y share';
+      const open=options.realControls?'<div role="button" tabindex="0"':'<button';
+      const close=options.realControls?'</div>':'</button>';
+      const addLabel=options.realControls?' aria-label="Agregar a la colección, '+title+'"':'';
+      const shareLabel=options.realControls?'Compartir, '+title:'Compartir';
+      const moreLabel=options.realControls?'Más, '+title:'Más opciones';
+      const popup=options.realControls?'dialog':'menu';
+      const actions='<div class="actions">'+open+' data-add="'+id+'"'+addLabel+'>Agregar a colección'+close+
+        open+' data-share="'+id+'" aria-label="'+shareLabel+'">↗'+close+
+        open+' data-more="'+id+'" '+(options.unlabelled?'':'aria-label="'+moreLabel+'" aria-haspopup="'+popup+'"')+'><svg aria-hidden="true"><circle cx="3" cy="10" r="2"/><circle cx="10" cy="10" r="2"/><circle cx="17" cy="10" r="2"/></svg>'+close+'</div>';
+      const nested=options.realControls?'<div><div><div><div>'+actions+'</div></div></div></div>':actions;
+      return '<article><a href="/posts/saved-'+id+'">Saved item '+id+'</a>'+nested+'</article>';
+    }).join('');
+    if(footer)footer.hidden=ids.length===0&&queued.length===0&&!loading;
+    document.getElementById('empty').hidden=ids.length>0||loading||(footer&&queued.length>0);
     feed.querySelectorAll('[data-add],[data-share]').forEach(button=>button.onclick=()=>record('wrong-action'));
     feed.querySelectorAll('[data-more]').forEach(button=>button.onclick=()=>openMenu(Number(button.dataset.more),button));
   }

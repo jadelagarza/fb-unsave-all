@@ -1,5 +1,14 @@
 # Cambios
 
+## 1.0.3 — 15 de noviembre de 2026
+
+- Corrige una incompatibilidad confirmada mediante inspección del DOM real: los nombres accesibles incluyen el título de la publicación, como «Agregar a la colección, [título]», «Compartir, [título]» y «Más, [título]».
+- Reconoce el prefijo de las acciones conocidas de cada tarjeta. Conserva la comparación exacta de Eliminar dentro del menú; no recorta nombres de opciones destructivas.
+- Admite el botón Más observado con `aria-haspopup="dialog"`, identificado por su acción. El menú real sigue teniendo `role="menu"` y Eliminar, `role="menuitem"`.
+- Distingue el indicador estático de carga al pie de la lista, presente mientras los controles siguen disponibles, de indicadores que bloquean la página. Se usa para esperar nuevas tarjetas al hacer scroll, sin impedir iniciar sobre las ya cargadas.
+- Permite verificar la desaparición del último elemento cargado mientras permanece la estructura de la lista con su indicador de continuación.
+- Añade pruebas con controles `div[role="button"]`, nombres con títulos, contenedores anidados y carga al pie. La inspección real no ejecutó eliminaciones; el ciclo completo con una cuenta real sigue requiriendo una prueba supervisada.
+
 ## 1.0.2 — 15 de noviembre de 2026
 
 - Identifica el área que contiene tarjetas de Guardados por sus controles, menú y enlace, sin exigir que toda la página tenga un único `main` o `role="main"`.

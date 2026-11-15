@@ -17,6 +17,7 @@ async function harness(options = {}) {
     assertPage() { if (securityError) throw new Error('Verificación de Facebook.'); },
     inspect: () => ({ ready: true }),
     loading: () => loading,
+    moreLoading: () => loading,
     openMenus: () => menu ? [{}] : [],
     clickable: () => true,
     cards: () => items.map((key) => ({ key, more: {
