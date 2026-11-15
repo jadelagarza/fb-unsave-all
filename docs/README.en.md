@@ -2,7 +2,7 @@
 
 [Español](../README.md) · [Development and verification](DEVELOPMENT.md) · [Changelog](../CHANGELOG.md)
 
-**Version 1.0.1** supports one-at-a-time removal on [Facebook Saved](https://www.facebook.com/saved/), with automatic scrolling and a configurable delay. Activity Log batches remain available. Page checks now show progress and their result or error beside the button. The popup is in Spanish; the adapters recognize the documented Spanish and English controls.
+**Version 1.0.2** supports one-at-a-time removal on [Facebook Saved](https://www.facebook.com/saved/), with automatic scrolling and a configurable delay. It recognizes the card feed even when Facebook exposes multiple main areas, including nested ones, and accepts the Spanish heading **Guardado**. Activity Log batches remain available. Page checks show progress and their result or error beside the button. The popup is in Spanish; the adapters recognize the documented Spanish and English controls.
 
 This removes references from your saved list, not the original posts. The extension cannot restore removed saves. Delays do not guarantee protection from Facebook restrictions. Automated tests use simulated pages; test the new mode with **one item** on your account before running a larger cleanup.
 
@@ -20,7 +20,7 @@ This removes references from your saved list, not the original posts. The extens
 5. Open **FB Unsave All** from Chrome's extensions menu.
 6. Reload an already-open Facebook tab once to activate the content script.
 
-To update, stop any active run, download the current files or run `git pull`, then click **Reload** on the extension in `chrome://extensions`. Verify version **1.0.1**, also shown in the popup header, and reload Facebook once. Keep the extracted directory in place. No Node.js or npm packages are required for end users. This project has no official Chrome Web Store listing.
+To update, stop any active run, download the current files or run `git pull`, then click **Reload** on the extension in `chrome://extensions`. Verify version **1.0.2**, also shown in the popup header, and reload Facebook once. Keep the extracted directory in place. No Node.js or npm packages are required for end users. This project has no official Chrome Web Store listing.
 
 ## Saved: one item at a time
 
@@ -66,7 +66,8 @@ If Activity Log omits older saves, use **Guardados: uno por uno**. The extension
 - If a run ends while saves remain, check filters, collections, virtualization and Facebook's loading behavior manually. Another traversal from the top may be necessary.
 - Resolve CAPTCHA, identity checks, errors and restrictions yourself. The extension does not bypass them.
 - After changing files, reload both the extension and Facebook.
-- If Check appears unresponsive, update to 1.0.1 and read the inline result. An unanswered page check now times out instead of leaving the panel waiting indefinitely; it never starts removal by itself.
+- If Check appears unresponsive, update to 1.0.2 and read the inline result. An unanswered page check times out instead of leaving the panel waiting indefinitely; it never starts removal by itself.
+- If an older version reports two main areas, update to 1.0.2 and reload both the extension and Facebook. The adapter now identifies the area containing recognizable saved cards. Two independent card feeds, or cards outside a nested feed, remain ambiguous and prevent clicks.
 
 When reporting an issue, include the extension and Chrome versions, language, mode and exact message. Redact private information. Never provide passwords, cookies, tokens or session files.
 

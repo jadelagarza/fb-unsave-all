@@ -69,7 +69,11 @@ Durante una comprobación se omiten consultas periódicas de estado para que no 
 
 ### Guardados: uno por uno
 
-Exige la ruta `/saved/`, origen exacto `https://www.facebook.com`, un área principal única y un título de Guardados reconocido en español o inglés. Rechaza rutas de colecciones y parámetros de colección. No confunde una lista sin tarjetas reconocibles con una cuenta vacía.
+Exige la ruta `/saved/`, origen exacto `https://www.facebook.com` y un título reconocido en español o inglés, incluido «Guardado» en singular. Rechaza rutas de colecciones y parámetros de colección. No confunde una lista sin tarjetas reconocibles con una cuenta vacía.
+
+Desde 1.0.2 no exige que toda la página tenga una sola área principal. Evalúa los contenedores `main` y `role="main"` mediante tarjetas reconocibles: Agregar a colección, un menú de la tarjeta y un enlace fuera del grupo de acciones. Ignora áreas sin esa estructura. Si varios contenedores anidados representan la misma lista, elige el interior; comprueba que no queden tarjetas reconocibles fuera de él en un antecesor. Dos listas independientes o tarjetas adicionales fuera del área elegida bloquean la operación antes de abrir menús. Un botón Agregar a colección aislado en otra sección no basta para identificar otra lista.
+
+El área ya reconocida se conserva mientras su último elemento desaparece o carga, sin elegir la barra lateral restante. Si un menú la oculta sólo para accesibilidad, se admite exclusivamente ese contenedor previamente verificado en el documento y URL actuales. También se reconoce `aria-busy` en sus antecesores. Las pruebas reproducen áreas hermanas, anidadas, dos listas independientes, tarjetas fuera de una lista anidada, menú con fondo oculto y lista vacía junto a una barra lateral.
 
 Cada tarjeta se ancla a un único botón Agregar a colección y un enlace de contenido. Se abre Más/Más opciones o un único botón con `aria-haspopup="menu"`. También admite el tercer botón sin nombre en un grupo exacto de tres controles cuyo primero sea Agregar a colección. Esa alternativa sólo abre el menú: para eliminar sigue siendo obligatoria una opción exacta dentro de un único menú nuevo, o el menú asociado mediante `aria-controls`. Los nombres admitidos están centralizados en `saved.js`; no se pulsa un Eliminar genérico ni «Eliminar colección».
 

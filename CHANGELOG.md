@@ -1,5 +1,13 @@
 # Cambios
 
+## 1.0.2 — 15 de noviembre de 2026
+
+- Identifica el área que contiene tarjetas de Guardados por sus controles, menú y enlace, sin exigir que toda la página tenga un único `main` o `role="main"`.
+- Admite áreas principales hermanas y anidadas que representan una misma lista. Conserva la detención si hay dos listas independientes o tarjetas fuera del área identificada.
+- Reconoce el título «Guardado», en singular, observado en la captura del usuario.
+- Conserva el contexto de la lista cuando un menú oculta el fondo para accesibilidad o desaparece la última tarjeta, sin cambiar a la barra lateral.
+- Respeta la carga indicada en un contenedor antecesor y añade pruebas de Chromium para estas variantes del DOM.
+
 ## 1.0.1 — 15 de noviembre de 2026
 
 - Muestra Comprobando inmediatamente al pulsar Comprobar esta página y coloca el resultado o error concreto junto al botón. Antes, los errores quedaban al final del panel y podían quedar fuera de vista.

@@ -8,7 +8,7 @@ module.exports = function fixture(options = {}) {
   <main><div id="feed"></div><div id="loading" role="progressbar" hidden>Cargando</div><p id="empty" hidden>No tienes elementos guardados</p></main>
   <script>
   const options=${JSON.stringify(options)};
-  let ids=Array.from({length:options.initial||3},(_,i)=>i+1);
+  let ids=Array.from({length:options.initial??3},(_,i)=>i+1);
   let queued=options.moreOnScroll?[4,5]:[];
   let deleted=0;
   let loading=false;
@@ -17,6 +17,18 @@ module.exports = function fixture(options = {}) {
   const main=document.querySelector('main');
   const feed=document.getElementById('feed');
   const busy=document.getElementById('loading');
+  if(options.singularHeading)document.querySelector('h1').textContent='Guardado';
+  if(options.otherMain){
+    const sidebar=document.createElement('aside');sidebar.setAttribute('role','main');
+    sidebar.innerHTML='<h2>Mis colecciones</h2><a href="/saved/?collection_id=999">General</a><button>Crear colección</button>'+
+      (options.unrelatedAdd?'<button>Agregar a colección</button>':'');
+    sidebar.querySelectorAll('button').forEach(button=>button.onclick=()=>record('wrong-action'));
+    main.before(sidebar);
+  }
+  if(options.nestedMain||options.splitMain){
+    const outer=document.createElement('div');outer.setAttribute('role','main');main.before(outer);outer.append(main);
+    if(options.busyOuter)outer.setAttribute('aria-busy','true');
+  }
   if(options.rootBusy)main.setAttribute('aria-busy','true');
   if(options.nestedScroll){
     const container=document.createElement('div');container.id='scroll-area';
@@ -50,11 +62,18 @@ module.exports = function fixture(options = {}) {
   const scrollTarget=options.nestedScroll?document.getElementById('scroll-area'):window;
   scrollTarget.addEventListener('scroll',()=>{
     record('scroll');
-    if(queued.length&&deleted>=(options.initial||3)&&!loading){
+    if(queued.length&&deleted>=(options.initial??3)&&!loading){
       loading=true;busy.hidden=false;render();
       setTimeout(()=>{ids=queued;queued=[];loading=false;busy.hidden=true;render();record('loaded');},400);
     }
   });
-  render();record('page-load');
+  render();
+  if(options.duplicateMain){
+    const duplicate=main.cloneNode(true);main.after(duplicate);
+  }
+  if(options.splitMain){
+    const otherCard=feed.querySelector('article').cloneNode(true);main.after(otherCard);
+  }
+  record('page-load');
   </script></html>`;
 };

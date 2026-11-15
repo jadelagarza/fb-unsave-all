@@ -50,6 +50,70 @@ async function setup(t, fixtureOptions = {}, url = 'https://www.facebook.com/sav
 }
 
 describe('Saved page extension fixtures', { concurrency: 3 }, () => {
+  test('Guardado with two sibling mains recognizes the card feed and ignores collection controls elsewhere', { timeout: 15000 }, async (t) => {
+    const h = await setup(t, { otherMain: true, unrelatedAdd: true, singularHeading: true });
+    assert.equal(await h.page.locator('main,[role="main"]').count(), 2);
+    await h.controller.evaluate(() => document.getElementById('inspect').click());
+    await h.controller.waitForFunction(() => document.getElementById('inspection').dataset.state === 'ready');
+    assert.match(await h.controller.locator('#inspection').innerText(), /3 tarjetas reconocidas/);
+    assert.equal((await h.start({ maxItems: 2 })).ok, true);
+    const run = await h.untilStatus('finished', 10000);
+    assert.equal(run.processed, 2);
+    const events = await h.events();
+    assert.deepEqual(events.filter((e) => e.type === 'delete').map((e) => e.id), [1, 2]);
+    assert.equal(events.filter((e) => e.type === 'wrong-action').length, 0);
+  });
+
+  test('nested mains describe one feed rather than duplicate cards', { timeout: 15000 }, async (t) => {
+    const h = await setup(t, { nestedMain: true });
+    assert.equal(await h.page.locator('main,[role="main"]').count(), 2);
+    const result = await h.request('inspect');
+    assert.equal(result.ok, true, result.error);
+    assert.equal(result.inspection.loaded, 3);
+    assert.equal((await h.start({ maxItems: 2 })).ok, true);
+    assert.equal((await h.untilStatus('finished', 10000)).processed, 2);
+  });
+
+  test('the recognized feed survives a menu hiding it and its last card disappearing beside another main', { timeout: 12000 }, async (t) => {
+    const h = await setup(t, { otherMain: true, hiddenMain: true, initial: 1, singularHeading: true });
+    assert.equal((await h.start({ maxItems: 1 })).ok, true);
+    assert.equal((await h.untilStatus('finished', 9000)).processed, 1);
+    assert.equal((await h.events()).filter((e) => e.type === 'wrong-action').length, 0);
+  });
+
+  test('two independent card feeds are refused before any menu is opened', { timeout: 10000 }, async (t) => {
+    const h = await setup(t, { duplicateMain: true });
+    const result = await h.start();
+    assert.equal(result.ok, false);
+    assert.match(result.error, /2 áreas independientes/);
+    assert.equal((await h.events()).filter((e) => ['open', 'delete'].includes(e.type)).length, 0);
+  });
+
+  test('cards outside a nested feed make the scope ambiguous rather than silently omitting them', { timeout: 10000 }, async (t) => {
+    const h = await setup(t, { splitMain: true });
+    const result = await h.start();
+    assert.equal(result.ok, false);
+    assert.match(result.error, /fuera del área identificada/);
+    assert.equal((await h.events()).filter((e) => ['open', 'delete'].includes(e.type)).length, 0);
+  });
+
+  test('an explicitly empty feed is recognized separately from its collections sidebar', { timeout: 10000 }, async (t) => {
+    const h = await setup(t, { otherMain: true, initial: 0 });
+    const result = await h.request('inspect');
+    assert.equal(result.ok, true, result.error);
+    assert.equal(result.inspection.empty, true);
+    assert.equal(result.inspection.ready, false);
+    assert.equal((await h.start()).ok, false);
+  });
+
+  test('busy state on an outer main still protects a nested feed', { timeout: 10000 }, async (t) => {
+    const h = await setup(t, { nestedMain: true, busyOuter: true });
+    const result = await h.request('inspect');
+    assert.equal(result.ok, true, result.error);
+    assert.equal(result.inspection.loading, true);
+    assert.equal(result.inspection.ready, false);
+    assert.equal((await h.start()).ok, false);
+  });
   test('the actual Inspect button shows immediate progress and its result without deleting', { timeout: 10000 }, async (t) => {
     const h = await setup(t);
     const pending = await h.controller.evaluate(() => {

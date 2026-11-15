@@ -8,7 +8,7 @@
   const collectionNames = new Set(["agregar a coleccion", "agregar a la coleccion", "anadir a coleccion", "anadir a la coleccion", "add to collection"]);
   const moreNames = new Set(["mas", "mas opciones", "opciones", "more", "more options", "options", "menu"]);
   const deleteNames = new Set(["eliminar", "delete", "quitar de guardados", "eliminar de guardados", "unsave", "remove from saved"]);
-  const headings = new Set(["guardados", "elementos guardados", "tus elementos guardados", "saved", "saved items", "your saved items"]);
+  const headings = new Set(["guardado", "guardados", "elementos guardados", "tus elementos guardados", "saved", "saved items", "your saved items"]);
   const menusSelector = '[role="menu"],[role="listbox"]';
   const alertsSelector = '[role="alert"],[role="dialog"],[role="alertdialog"]';
   const errorPattern = /actividad sospechosa|confirma tu identidad|comprueba que eres tu|demasiadas solicitudes|vuelve a intentarlo mas tarde|se produjo un error|no se pudo (?:eliminar|quitar)|bloquea(?:do|mos) temporalmente|suspicious activity|confirm your identity|too many requests|try again later|something went wrong|couldn.t (?:remove|delete)|temporarily blocked/;
@@ -31,19 +31,55 @@
     for (let i = 0; i < text.length; i++) value = Math.imul(value ^ text.charCodeAt(i), 16777619);
     return (value >>> 0).toString(16);
   }
+  const collectionControls = (scope) => buttons(scope).filter((el) => collectionNames.has(name(el)));
+  function narrowestScope(candidates) {
+    const inner = candidates.filter(({ scope }) => !candidates.some((other) => other.scope !== scope && scope.contains(other.scope)));
+    if (inner.length !== 1) {
+      throw new Error(`Se encontraron ${inner.length} áreas independientes con tarjetas de Guardados. No se puede determinar una única lista; no se hará clic.`);
+    }
+    const selected = inner[0].scope;
+    // An outer main may also contain cards outside the inner list. Never silently
+    // discard that second group merely because one main is nested inside another.
+    for (const candidate of candidates) {
+      for (const add of candidate.adds) {
+        if (selected.contains(add)) continue;
+        try { readCard(add, candidate.scope); }
+        catch { continue; } // An unrelated collection control is not a saved card.
+        throw new Error("Hay tarjetas de Guardados fuera del área identificada. La lista es ambigua; no se hará clic.");
+      }
+    }
+    return selected;
+  }
+  function listScope(url) {
+    const mains = all(document, 'main,[role="main"]');
+    const previous = verified?.url === url && verified.scope.isConnected ? verified.scope : null;
+    // Menus can hide the background only for accessibility. Reuse that exact scope
+    // only after it was recognized in this document, not an arbitrary hidden main.
+    if (previous && !mains.includes(previous) && visuallyVisible(previous) && all(document, menusSelector).length) mains.push(previous);
+    const candidates = mains.map((scope) => ({ scope, adds: collectionControls(scope) })).filter((candidate) =>
+      candidate.adds.some((add) => {
+        try { readCard(add, candidate.scope); return true; }
+        catch { return false; }
+      }));
+    if (candidates.length) return narrowestScope(candidates);
+    // Keep the recognized feed while its last card disappears or while it loads.
+    // Do not switch to the remaining sidebar just because it is now the only main.
+    if (previous && mains.includes(previous)) return previous;
+    if (mains.length === 1) return mains[0];
+    const empty = mains.filter(hasEmptyMessage);
+    if (empty.length) return narrowestScope(empty.map((scope) => ({ scope, adds: [] })));
+    throw new Error("No se pudo identificar el área que contiene las tarjetas de Guardados. Espera a que carguen los elementos y vuelve a comprobar.");
+  }
   function assertPage() {
     const url = new URL(location.href);
     if (url.origin !== "https://www.facebook.com" || !/^\/saved\/?$/.test(url.pathname) ||
         [...url.searchParams.keys()].some((key) => /collection|list_id/i.test(key))) {
       throw new Error("Abre https://www.facebook.com/saved/ en la vista de todos los guardados, fuera de una colección.");
     }
-    const main = all(document, 'main,[role="main"]');
-    const knownMenu = all(document, menusSelector).length > 0;
-    const scope = main.length === 1 ? main[0] : knownMenu && verified?.url === url.href && verified.scope.isConnected ? verified.scope :
-      unique(main, "área principal de Guardados");
     if (!cardElements(document, 'h1,h2,h3,[role="heading"]').some((el) => headings.has(name(el)))) {
       throw new Error("No se reconoce el título de Guardados. No se hará clic.");
     }
+    const scope = listScope(url.href);
     verified = { url: url.href, scope };
     if (all(document, alertsSelector).some((el) => errorPattern.test(normalize(el.innerText)))) {
       throw new Error("Facebook muestra un error o una verificación. Revisa la página manualmente.");
@@ -75,23 +111,23 @@
     if (!links.length) throw new Error("Una tarjeta no tiene un enlace reconocible para verificar su eliminación.");
     return hash([...new Set(links)].sort().join("|"));
   }
+  function readCard(add, scope) {
+    const { group, more } = actionGroup(add, scope);
+    let card = group;
+    // The smallest ancestor with its own content link and exactly one action group
+    // is the card. Do not promote a card to the entire feed.
+    while (card && card !== scope) {
+      if (collectionControls(card).length !== 1) break;
+      if (cardElements(card, 'a[href]').some((el) => !group.contains(el))) {
+        return { element: card, more, key: identity(card, group) };
+      }
+      card = card.parentElement;
+    }
+    throw new Error("No se pudo reconocer una tarjeta individual de Guardados.");
+  }
   function cards() {
     const scope = assertPage();
-    const adds = buttons(scope).filter((el) => collectionNames.has(name(el)));
-    const result = adds.map((add) => {
-      const { group, more } = actionGroup(add, scope);
-      let card = group;
-      // The smallest ancestor with its own content link and exactly one action group
-      // is the card. Do not promote a card to the entire feed.
-      while (card && card !== scope) {
-        if (buttons(card).filter((other) => collectionNames.has(name(other))).length !== 1) break;
-        if (cardElements(card, 'a[href]').some((el) => !group.contains(el))) {
-          return { element: card, more, key: identity(card, group) };
-        }
-        card = card.parentElement;
-      }
-      throw new Error("No se pudo reconocer una tarjeta individual de Guardados.");
-    });
+    const result = collectionControls(scope).map((add) => readCard(add, scope));
     if (new Set(result.map((card) => card.key)).size !== result.length) {
       throw new Error("Hay tarjetas con identidades ambiguas. Revisa la lista antes de eliminar.");
     }
@@ -100,7 +136,7 @@
   }
   function loading() {
     const scope = assertPage();
-    return scope.getAttribute("aria-busy") === "true" ||
+    return Boolean(scope.closest('[aria-busy="true"]')) ||
       all(scope, '[role="progressbar"],[aria-busy="true"],[data-visualcompletion="loading-state"]').length > 0;
   }
   const openMenus = () => all(document, menusSelector);
@@ -132,14 +168,17 @@
     const targets = items.filter((el) => !items.some((other) => other !== el && other.contains(el)));
     return targets.length ? unique(targets, 'opción «Eliminar» del menú') : null;
   }
+  function hasEmptyMessage(scope) {
+    return all(scope, 'p,span,div,[role="status"]').some((el) => {
+      const text = normalize(el.innerText || "");
+      return text.length < 130 && /^(?:(?:todavia )?no (?:hay|tienes) (?:nada|(?:mas |ningun )?elementos?)(?: guardados?)?(?: para mostrar)?[.!]?|you (?:have no|haven.t saved any) (?:saved )?items[.!]?|nothing to show[.!]?|no saved items[.!]?)$/.test(text);
+    });
+  }
   function deletionState(key) {
     const scope = assertPage();
     const current = cards();
     // Disappearance of the action buttons alone (e.g. during a rerender) is not evidence.
-    const explicitEmpty = all(scope, 'p,span,div,[role="status"]').some((el) => {
-      const text = normalize(el.innerText || "");
-      return text.length < 130 && /^(?:(?:todavia )?no (?:hay|tienes) (?:nada|(?:mas |ningun )?elementos?)(?: guardados?)?(?: para mostrar)?[.!]?|you (?:have no|haven.t saved any) (?:saved )?items[.!]?|nothing to show[.!]?|no saved items[.!]?)$/.test(text);
-    });
+    const explicitEmpty = hasEmptyMessage(scope);
     return { removed: !current.some((card) => card.key === key), ready: !loading() && !openMenus().length &&
       !all(document, '[role="dialog"],[role="alertdialog"]').length,
       hasList: current.length > 0 || explicitEmpty, empty: current.length === 0 && explicitEmpty,
