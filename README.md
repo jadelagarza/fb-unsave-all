@@ -2,7 +2,7 @@
 
 Extensión local de Google Chrome para quitar los elementos guardados de tu cuenta de Facebook mediante sus controles visibles.
 
-**Versión 1.0.6.** Permite eliminar uno por uno desde [Guardados](https://www.facebook.com/saved/), con espera configurable, cuenta regresiva y desplazamiento automático. Distingue títulos cuando Facebook asigna el mismo enlace genérico a productos distintos. Admite tarjetas con o sin Compartir, incluida la variante de dos botones cuyo menú se llama «Más opciones para el elemento guardado». Conserva la limpieza por lotes del Registro de actividad y muestra el resultado o error de la comprobación junto al botón.
+**Versión 1.0.7.** Permite eliminar uno por uno desde [Guardados](https://www.facebook.com/saved/), con espera configurable, cuenta regresiva y desplazamiento automático. También procesa tarjetas vacías sin título ni enlace propio, verificando que haya una tarjeta vacía menos y que los demás elementos identificables no cambien. Conserva el modo por lotes del Registro de actividad.
 
 [English guide](docs/README.en.md) · [Desarrollo y pruebas](docs/DEVELOPMENT.md) · [Historial de cambios](CHANGELOG.md)
 
@@ -45,7 +45,7 @@ Mantén la carpeta en el mismo lugar mientras esté instalada. Este proyecto no 
 
 1. Detén cualquier ejecución activa.
 2. Descarga la versión actual o ejecuta `git pull` en tu clon.
-3. En `chrome://extensions`, pulsa **Recargar** en FB Unsave All y comprueba la versión **1.0.6**, también visible en la cabecera del panel.
+3. En `chrome://extensions`, pulsa **Recargar** en FB Unsave All y comprueba la versión **1.0.7**, también visible en la cabecera del panel.
 4. Recarga Facebook una vez. Esta recarga es necesaria para reemplazar el script anterior.
 5. Abre de nuevo el panel y selecciona el modo deseado. El modo predeterminado ahora es **Guardados: uno por uno**.
 
@@ -80,6 +80,14 @@ El tiempo real entre clics será mayor que la pausa configurada, porque incluye 
 
 Durante la pausa, el panel muestra el tiempo restante: **4 s → 3 s → 2 s → 1 s**. Se calcula con la hora de fin de la pausa; si cierras y reabres el panel, muestra lo que realmente queda. También funciona entre lotes. El contador no modifica la espera ni indica que ya haya comenzado la siguiente eliminación.
 
+### Tarjetas vacías o sin título
+
+Desde 1.0.7, una tarjeta que sólo muestra metadatos como **Reel**, junto con Agregar a colección y un menú Más reconocible, puede procesarse aunque no tenga título ni enlace propio. No necesitas activar una opción adicional.
+
+El script abre el menú de esa tarjeta, pulsa Eliminar una sola vez y espera a comprobar que hay **exactamente una tarjeta vacía menos**, con el mismo conjunto de elementos identificables y sin carga o diálogos pendientes. Exige 1.5 segundos de estabilidad antes de aumentar el contador y continuar. Admite varias tarjetas vacías consecutivas y respeta el máximo y la pausa configurados.
+
+Si cambia el resto de la lista, la tarjeta empieza a mostrar información en lugar de desaparecer o no se confirma la reducción, se detiene para revisión. No repite automáticamente esa eliminación. Las tarjetas con datos presentes pero idénticos que no permiten distinguirlas mantienen su comprobación de ambigüedad.
+
 ## Registro de actividad: lotes
 
 1. Selecciona **Registro de actividad: lotes** y pulsa **Abrir mis elementos guardados**.
@@ -112,6 +120,7 @@ Si Facebook deja de mostrar elementos anteriores a cierta fecha en el Registro d
 | «No se pudo identificar el área» aunque las tarjetas están cargadas | Actualiza a 1.0.3. Los nombres accesibles reales pueden incluir el título después de «Agregar a la colección» o «Más»; antes se comparaba el nombre completo con un texto corto y se descartaban esas tarjetas. |
 | «No se pudo aislar el menú de tres puntos» y hay tarjetas sin Compartir | Actualiza a 1.0.5 y recarga la extensión y Facebook. Reconoce «Más opciones para el elemento guardado» en grupos de dos controles. Si el segundo botón no tiene una acción reconocible, se mantiene la detención. |
 | «Hay tarjetas con identidades ambiguas» | Actualiza a 1.0.6. Algunos productos distintos apuntan a la misma página de inicio de Facebook; ahora se usa el título como respaldo. Si tampoco el título permite distinguirlos, la extensión se detiene y requiere revisión manual. |
+| Una tarjeta negra o sin título detiene la ejecución | Actualiza a 1.0.7 y recarga la extensión y Facebook. Se admite la estructura vacía reconocida con metadatos como Reel y su menú. La eliminación debe reducir el número de tarjetas vacías sin cambiar el resto de elementos identificables. |
 | «Áreas independientes» o «tarjetas fuera del área identificada» | Hay más de una lista reconocible y no se puede escoger una con certeza. La ejecución se detiene antes de abrir menús. Revisa la vista y reporta el mensaje exacto. |
 | No se reconoce una tarjeta o su menú | Comprueba que estés en la vista general de Guardados, en español o inglés, con tarjetas cargadas y los tres botones indicados. Guarda el mensaje exacto para reportarlo. |
 | Eliminar no aparece en el menú | La extensión se detiene. No se pulsa otra opción parecida ni un botón de otra parte de la página. |

@@ -160,9 +160,17 @@
           .filter(Boolean);
 
     if (!titles.length) {
-      throw new Error("La tarjeta no ofrece un enlace propio ni un título identificable. Revisa el elemento manualmente.");
+      return null;
     }
     return hash(`title:${JSON.stringify([...new Set(titles)].sort())}`);
+  }
+  function hasUntitledMetadata(card, group) {
+    const text = normalize(card.innerText || "");
+    const actions = normalize(group.innerText || "");
+    const content = actions && text.endsWith(actions)
+      ? text.slice(0, -actions.length).trim()
+      : text;
+    return /^(?:reel|video|publicacion|enlace|producto|post|link|product)$/.test(content);
   }
   function readCard(add, scope) {
     const { group, more } = actionGroup(add, scope);
@@ -171,8 +179,14 @@
     // is the card. Do not promote a card to the entire feed.
     while (card && card !== scope) {
       if (collectionControls(card).length !== 1) break;
-      if (cardElements(card, 'a[href]').some((el) => !group.contains(el))) {
-        return { element: card, more, key: identity(card, group, add) };
+      const hasLink = cardElements(card, 'a[href]').some((element) => !group.contains(element));
+      const untitled = hasUntitledMetadata(card, group);
+      if (hasLink || untitled) {
+        const key = identity(card, group, add);
+        if (key === null && !untitled) {
+          throw new Error("La tarjeta no ofrece un enlace propio ni un título identificable y no tiene una estructura vacía reconocible.");
+        }
+        return { element: card, more, key, anonymous: key === null };
       }
       card = card.parentElement;
     }
@@ -181,7 +195,8 @@
   function cards() {
     const scope = assertPage();
     const result = collectionControls(scope).map((add) => readCard(add, scope));
-    if (new Set(result.map((card) => card.key)).size !== result.length) {
+    const identified = result.filter((card) => !card.anonymous);
+    if (new Set(identified.map((card) => card.key)).size !== identified.length) {
       throw new Error("Hay tarjetas con identidades ambiguas. Revisa la lista antes de eliminar.");
     }
     if (result.length) scrollArea = findScrollArea(result.at(-1).element.parentElement);
@@ -249,15 +264,46 @@
       return text.length < 130 && /^(?:(?:todavia )?no (?:hay|tienes) (?:nada|(?:mas |ningun )?elementos?)(?: guardados?)?(?: para mostrar)?[.!]?|you (?:have no|haven.t saved any) (?:saved )?items[.!]?|nothing to show[.!]?|no saved items[.!]?)$/.test(text);
     });
   }
-  function deletionState(key) {
+  function identifiedKeys(current) {
+    return current.filter((card) => !card.anonymous).map((card) => card.key).sort();
+  }
+  function sameKeys(first, second) {
+    return first.length === second.length && first.every((key, index) => key === second[index]);
+  }
+  function captureAnonymous(card) {
+    const current = cards();
+    if (!current.some((item) => item.anonymous && item.more === card.more)) {
+      throw new Error("La tarjeta vacía cambió después de abrir su menú. Revisa la página.");
+    }
+    return {
+      kind: "anonymous",
+      beforeAnonymous: current.filter((item) => item.anonymous).length,
+      identifiedKeys: identifiedKeys(current)
+    };
+  }
+  function anonymousTargetReady(card, snapshot) {
+    const current = cards();
+    return current.some((item) => item.anonymous && item.more === card.more) &&
+      current.filter((item) => item.anonymous).length === snapshot.beforeAnonymous &&
+      sameKeys(identifiedKeys(current), snapshot.identifiedKeys);
+  }
+  function deletionState(target) {
     const scope = assertPage();
     const current = cards();
+    const keys = identifiedKeys(current);
+    const anonymousAfter = current.filter((card) => card.anonymous).length;
+    const anonymous = target?.kind === "anonymous";
+    const peersUnchanged = anonymous && sameKeys(keys, target.identifiedKeys);
+    const removed = anonymous
+      ? anonymousAfter === target.beforeAnonymous - 1 && peersUnchanged
+      : !current.some((card) => card.key === target);
     // Disappearance of the action buttons alone (e.g. during a rerender) is not evidence.
     const explicitEmpty = hasEmptyMessage(scope);
-    return { removed: !current.some((card) => card.key === key), ready: !loading() && !openMenus().length &&
+    return { removed, anonymousAfter, peersUnchanged,
+      ready: !loading() && !openMenus().length &&
       !all(document, '[role="dialog"],[role="alertdialog"]').length,
       hasList: current.length > 0 || explicitEmpty || footerLoaders(scope).length > 0, empty: current.length === 0 && explicitEmpty,
-      signature: current.map((card) => card.key).join(",") };
+      signature: JSON.stringify({ keys, anonymous: anonymousAfter }) };
   }
   function scrollMore() {
     const scope = assertPage();
@@ -266,5 +312,6 @@
     if (!scroll) throw new Error("No se pudo reconocer el área desplazable de Guardados.");
     scroll.scrollBy({ top: Math.max(400, scroll.clientHeight * 0.85), behavior: "instant" });
   }
-  globalThis.FBSaved = Object.freeze({ assertPage, cards, inspect, loading, moreLoading, openMenus, clickable, menuDelete, deletionState, scrollMore });
+  globalThis.FBSaved = Object.freeze({ assertPage, cards, inspect, loading, moreLoading, openMenus, clickable,
+    menuDelete, captureAnonymous, anonymousTargetReady, deletionState, scrollMore });
 })();

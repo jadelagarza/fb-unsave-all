@@ -50,6 +50,74 @@ async function setup(t, fixtureOptions = {}, url = 'https://www.facebook.com/sav
 }
 
 describe('Saved page extension fixtures', { concurrency: 3 }, () => {
+  test('multiple blank saved cards are removed once each between identified cards after full DOM rerenders', { timeout: 25000 }, async (t) => {
+    const h = await setup(t, {
+      initial: 4,
+      realControls: true,
+      nestedMain: true,
+      singularHeading: true,
+      footerLoading: true,
+      blankIds: [2, 3]
+    });
+    const result = await h.request('inspect');
+    assert.equal(result.ok, true, result.error);
+    assert.equal(result.inspection.loaded, 4);
+    assert.equal(result.inspection.ready, true);
+    assert.equal((await h.start({ maxItems: 4 })).ok, true);
+    const run = await h.untilStatus('finished', 20000);
+    assert.equal(run.processed, 4);
+    assert.equal(run.planned, 4);
+    const events = await h.events();
+    assert.deepEqual(events.filter((event) => event.type === 'delete').map((event) => event.id), [1, 2, 3, 4]);
+    assert.equal(events.filter((event) => event.type === 'page-load').length, 1);
+    assert.equal(events.filter((event) => event.type === 'wrong-action').length, 0);
+  });
+
+  test('a final blank card with no links can be verified through the explicit empty state', { timeout: 12000 }, async (t) => {
+    const h = await setup(t, {
+      initial: 1,
+      realControls: true,
+      otherMain: true,
+      hiddenMain: true,
+      blankIds: [1],
+      blankWithoutLinkIds: [1]
+    });
+    const result = await h.request('inspect');
+    assert.equal(result.ok, true, result.error);
+    assert.equal(result.inspection.loaded, 1);
+    assert.equal((await h.start({ maxItems: 1 })).ok, true);
+    assert.equal((await h.untilStatus('finished', 9000)).processed, 1);
+  });
+
+  test('a blank card arriving through automatic scroll does not stop the ongoing run', { timeout: 40000 }, async (t) => {
+    const h = await setup(t, {
+      realControls: true,
+      footerLoading: true,
+      moreOnScroll: true,
+      blankIds: [4]
+    });
+    assert.equal((await h.start({ maxItems: 5 })).ok, true);
+    const run = await h.untilStatus('finished', 35000);
+    assert.equal(run.processed, 5);
+    const events = await h.events();
+    assert.ok(events.some((event) => event.type === 'loaded'));
+    assert.deepEqual(events.filter((event) => event.type === 'delete').map((event) => event.id), [1, 2, 3, 4, 5]);
+  });
+
+  test('a blank card becoming identifiable after Delete is not falsely counted as removed', { timeout: 40000 }, async (t) => {
+    const h = await setup(t, {
+      realControls: true,
+      blankIds: [1],
+      promoteBlankInsteadDelete: true,
+      noProgress: true
+    });
+    assert.equal((await h.start()).ok, true);
+    const run = await h.untilStatus('blocked', 35000);
+    assert.equal(run.processed, 0);
+    assert.match(run.message, /No se pudo verificar la eliminación/);
+    assert.equal((await h.events()).filter((event) => event.type === 'delete').length, 1);
+  });
+
   test('different saved products sharing a generic Facebook link remain distinct through rerenders', { timeout: 20000 }, async (t) => {
     const h = await setup(t, {
       realControls: true,
@@ -139,6 +207,7 @@ describe('Saved page extension fixtures', { concurrency: 3 }, () => {
   test('a two-button card with an unknown dialog action is refused before opening any menu', { timeout: 10000 }, async (t) => {
     const h = await setup(t, {
       realControls: true,
+      blankIds: [2],
       twoButtonIds: [2],
       unknownMenuIds: [2]
     });

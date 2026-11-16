@@ -27,12 +27,16 @@
     if (!dom.inspect().ready) throw new Error("Carga las tarjetas de Guardados y cierra sus menús antes de iniciar.");
     const completed = new Set();
     const seen = new Set();
+    let anonymousCompleted = 0;
     async function discover() {
       const current = dom.cards();
-      for (const item of current) seen.add(item.key);
-      const total = run.maxItems ? Math.min(seen.size, run.maxItems) : seen.size;
+      for (const item of current) {
+        if (!item.anonymous) seen.add(item.key);
+      }
+      const discovered = seen.size + anonymousCompleted + current.filter((item) => item.anonymous).length;
+      const total = run.maxItems ? Math.min(discovered, run.maxItems) : discovered;
       if (total > run.planned) run = (await send("saved-plan", { id: run.id, total })).run;
-      return current.find((item) => !completed.has(item.key));
+      return current.find((item) => item.anonymous || !completed.has(item.key));
     }
     async function loadMore() {
       await phase("scrolling", "Desplazando para cargar más elementos guardados…");
@@ -60,7 +64,8 @@
           "Facebook no entregó nuevas tarjetas después de desplazar. Esto no confirma que toda la cuenta esté vacía.";
         break;
       }
-      const key = next.key;
+      const anonymous = Boolean(next.anonymous);
+      const kind = anonymous ? "anonymous" : "identified";
       // The delay starts only after the previous removal was verified. Stop remains responsive.
       if (Date.now() < run.notBefore) {
         await phase("cooldown", `Pausa de ${run.delayMs / 1000} s entre elementos…`);
@@ -68,11 +73,19 @@
       }
       await phase("selecting", `Abriendo menú del elemento ${run.processed + 1}…`);
       if (dom.openMenus().length) throw new Error("Hay un menú abierto ajeno a la operación. Ciérralo y revisa la página.");
-      let card = dom.cards().find((item) => item.key === key);
+      const key = anonymous ? `anonymous-${run.processed + 1}` : next.key;
+      let card = dom.cards().find((item) => anonymous ? item.anonymous : item.key === key);
       if (!card) throw new Error("Una tarjeta pendiente desapareció antes de procesarla. Revisa la lista.");
       card.more.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" });
       await waitFor(() => {
-        card = dom.cards().find((item) => item.key === key);
+        const current = dom.cards();
+        const fresh = anonymous
+          ? current.find((item) => item.anonymous && item.more === card?.more) || current.find((item) => item.anonymous)
+          : current.find((item) => item.key === key);
+        if (fresh && fresh.more !== card.more) {
+          fresh.more.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" });
+        }
+        card = fresh;
         return card && dom.clickable(card.more) && !dom.loading();
       }, 10000, "El botón de tres puntos no está disponible o está cubierto.");
       const before = dom.openMenus();
@@ -81,24 +94,37 @@
       const remove = await waitFor(() => dom.menuDelete(before, card.more), 10000,
         'No apareció una única opción «Eliminar» en el menú de la tarjeta. No se hizo clic en otra opción.');
       await check();
-      if (!dom.cards().some((item) => item.key === key) || !dom.clickable(remove)) {
+      const snapshot = anonymous ? dom.captureAnonymous(card) : key;
+      if ((!anonymous && !dom.cards().some((item) => item.key === key)) || !dom.clickable(remove)) {
         throw new Error("La tarjeta o su menú cambiaron antes de eliminar. Revisa la página.");
       }
-      run = (await send("saved-pending", { id: run.id, key })).run;
+      run = (await send("saved-pending", {
+        id: run.id, key, kind,
+        ...(anonymous ? { anonymousBefore: snapshot.beforeAnonymous } : {})
+      })).run;
       await check();
+      if (anonymous && !dom.anonymousTargetReady(card, snapshot)) {
+        throw new Error("La tarjeta vacía o su lista cambiaron antes de eliminar. Revisa la página.");
+      }
       remove.click();
-      await phase("waiting", "Esperando a comprobar que desapareció la tarjeta…");
+      await phase("waiting", anonymous
+        ? "Comprobando que disminuya una tarjeta vacía y se conserven los demás elementos…"
+        : "Esperando a comprobar que desapareció la tarjeta…");
       let since = 0;
       let signature;
-      await waitFor(() => {
-        const state = dom.deletionState(key);
+      const completion = await waitFor(() => {
+        const state = dom.deletionState(snapshot);
         if (!state.removed || !state.ready || !state.hasList) { since = 0; return false; }
         if (!since || signature !== state.signature) { signature = state.signature; since = Date.now(); }
-        return Date.now() - since >= 1000;
+        return Date.now() - since >= (anonymous ? 1500 : 1000) ? state : null;
       }, 30000, "No se pudo verificar la eliminación de la tarjeta. Se detuvo sin reintentar ni recargar; revisa Guardados.");
       await check();
-      run = (await send("saved-completed", { id: run.id, key, evidenceVerified: true })).run;
-      completed.add(key);
+      run = (await send("saved-completed", {
+        id: run.id, key, kind, evidenceVerified: true,
+        ...(anonymous ? { anonymousAfter: completion.anonymousAfter, peersUnchanged: completion.peersUnchanged } : {})
+      })).run;
+      if (anonymous) anonymousCompleted++;
+      else completed.add(key);
     }
     await check();
     if (!reason) reason = "Se alcanzó el máximo de elementos configurado.";

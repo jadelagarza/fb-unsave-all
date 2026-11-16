@@ -9,6 +9,7 @@ module.exports = function fixture(options = {}) {
   <script>
   const options=${JSON.stringify(options)};
   let ids=Array.from({length:options.initial??3},(_,i)=>i+1);
+  const blankIds = new Set(options.blankIds || []);
   let queued=options.moreOnScroll?[4,5]:[];
   let deleted=0;
   let renderCount=0;
@@ -45,18 +46,19 @@ module.exports = function fixture(options = {}) {
   function render(){
     renderCount++;
     feed.innerHTML=ids.map(id=>{
+      const blank = blankIds.has(id);
       const title='Demo '+id+', compartir y share';
       const open=options.realControls?'<div role="button" tabindex="0"':'<button';
       const close=options.realControls?'</div>':'</button>';
       const savedItemMenu = (options.savedItemMenuIds || []).includes(id);
       const unknownMenu = (options.unknownMenuIds || []).includes(id);
-      const hasShare = !(options.twoButtonIds || []).includes(id);
-      const addLabel = savedItemMenu
+      const hasShare = !blank && !(options.twoButtonIds || []).includes(id);
+      const addLabel = blank || savedItemMenu
         ? ' aria-label="Agregar a colección"'
         : options.realControls ? ' aria-label="Agregar a la colección, ' + title + '"' : '';
       const shareLabel=options.realControls?'Compartir, '+title:'Compartir';
       const moreLabel = unknownMenu ? 'Acción desconocida'
-        : savedItemMenu ? 'Más opciones para el elemento guardado'
+        : blank || savedItemMenu ? 'Más opciones para el elemento guardado'
         : options.realControls ? 'Más, ' + title : 'Más opciones';
       const popup=options.realControls?'dialog':'menu';
       const shareButton = hasShare
@@ -66,6 +68,13 @@ module.exports = function fixture(options = {}) {
         shareButton+
         open+' data-more="'+id+'" '+(options.unlabelled?'':'aria-label="'+moreLabel+'" aria-haspopup="'+popup+'"')+'><svg aria-hidden="true"><circle cx="3" cy="10" r="2"/><circle cx="10" cy="10" r="2"/><circle cx="17" cy="10" r="2"/></svg>'+close+'</div>';
       const nested=options.realControls?'<div><div><div><div>'+actions+'</div></div></div></div>':actions;
+      if (blank) {
+        const placeholder = '<div style="width:144px;height:144px;background:#111"></div>';
+        const thumbnail = (options.blankWithoutLinkIds || []).includes(id)
+          ? placeholder
+          : '<a href="https://facebook.com/">' + placeholder + '</a>';
+        return '<article>' + thumbnail + '<span>Reel</span>' + nested + '</article>';
+      }
       const genericLink = (options.genericLinkIds || []).includes(id);
       const titleHref = genericLink ? 'https://facebook.com/' : '/posts/saved-' + id;
       const titleText = genericLink && options.identicalGenericTitles ? 'Saved product' : 'Saved item ' + id;
@@ -89,7 +98,9 @@ module.exports = function fixture(options = {}) {
       if(options.security){const alert=document.createElement('p');alert.setAttribute('role','alert');alert.textContent='Confirma tu identidad';document.body.append(alert);return;}
       setTimeout(()=>{
         loading=false;busy.hidden=true;
-        if(!options.noProgress){ids=ids.filter(value=>value!==id);deleted++;}
+        if (options.promoteBlankInsteadDelete && blankIds.has(id)) {
+          blankIds.delete(id);
+        } else if(!options.noProgress){ids=ids.filter(value=>value!==id);deleted++;}
         render();record('removed',id);
       },300);
     };

@@ -76,7 +76,8 @@ async function handle(message, sender) {
     if (!result.inspection.ready || result.inspection.empty) throw new Error("La lista no está lista o ya está vacía.");
     const run = await write({
       id: crypto.randomUUID(), tabId: tab.id, documentId: null, status: "running", phase: "starting",
-      mode, maxBatches, maxItems, planned: 0, pendingKey: null, lastCompletedKey: null,
+      mode, maxBatches, maxItems, planned: 0, pendingKey: null, pendingKind: null,
+      anonymousBefore: 0, lastCompletedKey: null,
       delayMs: delaySeconds * 1000, batches: 0, processed: 0, pendingSelected: 0,
       lastFingerprint: null, awaitingVerification: false, notBefore: 0,
       startedAt: Date.now(), message: "Iniciando…"
@@ -116,13 +117,26 @@ async function handle(message, sender) {
           message.total > 100000 || (run.maxItems && message.total > run.maxItems)) throw new Error("Plan de elementos inválido.");
       return { run: await write({ ...run, planned: message.total }) };
     }
-    if (!run.planned || run.processed >= run.planned || !/^[a-f0-9]{1,8}$/.test(message.key || "")) throw new Error("Elemento pendiente inválido.");
+    const kind = message.kind || "identified";
+    const anonymous = kind === "anonymous";
+    const validKey = anonymous
+      ? message.key === `anonymous-${run.processed + 1}`
+      : kind === "identified" && /^[a-f0-9]{1,8}$/.test(message.key || "");
+    if (!run.planned || run.processed >= run.planned || !validKey) throw new Error("Elemento pendiente inválido.");
     if (message.type === "saved-pending") {
       if (run.phase !== "selecting" || run.pendingKey || message.key === run.lastCompletedKey || Date.now() < run.notBefore) throw new Error("No se puede eliminar otro elemento en este estado.");
-      return { run: await write({ ...run, pendingKey: message.key, phase: "deleting" }) };
+      if (anonymous && (!Number.isInteger(message.anonymousBefore) || message.anonymousBefore < 1 || message.anonymousBefore > 100000)) {
+        throw new Error("Cantidad inicial de tarjetas vacías inválida.");
+      }
+      return { run: await write({ ...run, pendingKey: message.key, pendingKind: kind,
+        anonymousBefore: anonymous ? message.anonymousBefore : 0, phase: "deleting" }) };
     }
-    if (run.phase !== "waiting" || run.pendingKey !== message.key || message.evidenceVerified !== true) throw new Error("No se ha verificado la eliminación del elemento pendiente.");
-    return { run: await write({ ...run, processed: run.processed + 1, pendingKey: null, lastCompletedKey: message.key,
+    if (run.phase !== "waiting" || run.pendingKey !== message.key || (run.pendingKind || "identified") !== kind || message.evidenceVerified !== true) throw new Error("No se ha verificado la eliminación del elemento pendiente.");
+    if (anonymous && (!Number.isInteger(message.anonymousAfter) || message.anonymousAfter !== run.anonymousBefore - 1 || message.peersUnchanged !== true)) {
+      throw new Error("No se comprobó la reducción de una tarjeta vacía con los demás elementos intactos.");
+    }
+    return { run: await write({ ...run, processed: run.processed + 1, pendingKey: null, pendingKind: null,
+      anonymousBefore: 0, lastCompletedKey: message.key,
       phase: "ready", notBefore: Date.now() + run.delayMs, message: `Elemento eliminado y comprobado. ${run.processed + 1} de ${run.planned}.` }) };
   }
   if (message.type === "phase") {

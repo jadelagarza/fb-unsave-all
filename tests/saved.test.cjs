@@ -6,13 +6,25 @@ async function harness(options = {}) {
   const clock = new Clock();
   const bg = backgroundHarness(clock);
   const events = [];
-  let items = ['a', 'b'];
+  let items = options.items || ['a', 'b'];
+  const anonymousIds = new Set(options.anonymousIds || []);
+  const nodes = new Map();
   let menu = false;
   let removeKey;
   let loading = false;
   let scrolls = 0;
   let securityError = false;
   const record = (type, key) => events.push({ type, key, at: clock.now });
+  const knownKeys = () => items.filter((key) => !anonymousIds.has(key)).sort();
+  const anonymousCount = () => items.filter((key) => anonymousIds.has(key)).length;
+  const sameKeys = (keys) => JSON.stringify(knownKeys()) === JSON.stringify(keys);
+  function moreFor(key) {
+    if (!nodes.has(key)) nodes.set(key, {
+      scrollIntoView() { record('view', key); },
+      click() { menu = true; removeKey = key; record('open', key); }
+    });
+    return nodes.get(key);
+  }
   const dom = {
     assertPage() { if (securityError) throw new Error('Verificación de Facebook.'); },
     inspect: () => ({ ready: true }),
@@ -20,10 +32,10 @@ async function harness(options = {}) {
     moreLoading: () => loading,
     openMenus: () => menu ? [{}] : [],
     clickable: () => true,
-    cards: () => items.map((key) => ({ key, more: {
-      scrollIntoView() { record('view', key); },
-      click() { menu = true; removeKey = key; record('open', key); }
-    } })),
+    cards: () => items.map((key) => ({
+      key: anonymousIds.has(key) ? null : key,
+      anonymous: anonymousIds.has(key), testId: key, more: moreFor(key)
+    })),
     menuDelete() {
       if (!menu || options.missingDelete) return null;
       return { click() {
@@ -31,13 +43,26 @@ async function harness(options = {}) {
         if (options.securityError) securityError = true;
         if (!options.stuck) clock.setTimeout(() => {
           loading = false;
-          if (!options.noProgress) items = items.filter((key) => key !== removeKey);
+          if (options.identifyInsteadOfDelete) anonymousIds.delete(removeKey);
+          else if (!options.noProgress) items = items.filter((key) => key !== removeKey);
+          if (options.removePeerOnDelete) items = items.filter((key) => key !== options.removePeerOnDelete);
           record('removed', removeKey);
         }, 600);
       } };
     },
-    deletionState: (key) => ({ removed: !items.includes(key), ready: !loading && !menu,
-      hasList: true, empty: items.length === 0, signature: items.join(',') }),
+    captureAnonymous: () => ({ kind: 'anonymous', beforeAnonymous: anonymousCount(), identifiedKeys: knownKeys() }),
+    anonymousTargetReady: (card, snapshot) => items.includes(card.testId) && anonymousIds.has(card.testId) &&
+      anonymousCount() === snapshot.beforeAnonymous && sameKeys(snapshot.identifiedKeys),
+    deletionState: (target) => {
+      const peersUnchanged = target?.kind === 'anonymous' && sameKeys(target.identifiedKeys);
+      return {
+        removed: target?.kind === 'anonymous'
+          ? anonymousCount() === target.beforeAnonymous - 1 && peersUnchanged
+          : !items.includes(target),
+        anonymousAfter: anonymousCount(), peersUnchanged, ready: !loading && !menu,
+        hasList: true, empty: items.length === 0, signature: items.join(',')
+      };
+    },
     scrollMore() {
       record('scroll');
       if (options.moreOnScroll && scrolls++ === 0) {
@@ -77,6 +102,71 @@ test('saved mode removes sequentially, scrolls to load more, and never reloads',
   const deletions = h.events.filter((e) => e.type === 'delete');
   const removed = h.events.filter((e) => e.type === 'removed');
   for (let i = 1; i < deletions.length; i++) assert.ok(deletions[i].at - removed[i - 1].at >= 5000);
+});
+
+test('multiple anonymous cards are counted individually and do not prevent processing identified peers', async () => {
+  const h = await harness({ items: ['a', 'b', 'c'], anonymousIds: ['a', 'b'], maxItems: 3 });
+  await h.clock.until(() => h.bg.run.status === 'finished');
+  assert.equal(h.bg.run.processed, 3);
+  assert.equal(h.bg.run.planned, 3);
+  assert.deepEqual(h.events.filter((event) => event.type === 'delete').map((event) => event.key), ['a', 'b', 'c']);
+  assert.equal(h.bg.reloads.length, 0);
+});
+
+test('an anonymous card that remains is not counted or retried', async () => {
+  const h = await harness({ anonymousIds: ['a'], noProgress: true });
+  await h.clock.until(() => h.bg.run.status === 'blocked');
+  assert.equal(h.bg.run.processed, 0);
+  assert.equal(h.events.filter((event) => event.type === 'delete').length, 1);
+});
+
+test('a blank card gaining an identity is not mistaken for a removal', async () => {
+  const h = await harness({ anonymousIds: ['a'], identifyInsteadOfDelete: true });
+  await h.clock.until(() => h.bg.run.status === 'blocked');
+  assert.equal(h.bg.run.processed, 0);
+  assert.equal(h.events.filter((event) => event.type === 'delete').length, 1);
+});
+
+test('a simultaneous change to identified peers prevents counting an anonymous removal', async () => {
+  const h = await harness({ anonymousIds: ['a'], removePeerOnDelete: 'b' });
+  await h.clock.until(() => h.bg.run.status === 'blocked');
+  assert.equal(h.bg.run.processed, 0);
+  assert.equal(h.events.filter((event) => event.type === 'delete').length, 1);
+});
+
+test('Stop during an anonymous removal cannot be overwritten by a later completion', async () => {
+  const h = await harness({ anonymousIds: ['a'], stuck: true });
+  await h.clock.until(() => h.events.some((event) => event.type === 'delete'));
+  await h.bg.request('stop');
+  let settled = false;
+  h.done.then(() => { settled = true; });
+  await h.clock.until(() => settled);
+  assert.equal(h.bg.run.status, 'stopped');
+  assert.equal(h.bg.run.processed, 0);
+  assert.equal(h.events.filter((event) => event.type === 'delete').length, 1);
+});
+
+test('anonymous protocol requires a matching operation, a one-card decrease and unchanged peers', async () => {
+  const bg = backgroundHarness();
+  bg.setPageHandler(async () => ({ ok: true, inspection: { mode: 'saved', ready: true, empty: false } }));
+  await bg.request('start', { mode: 'saved', acknowledged: true, maxItems: 1, delaySeconds: 4 });
+  const sender = bg.pageSender();
+  const { run } = await bg.request('hello', {}, sender);
+  const request = (type, fields = {}) => bg.request(type, { id: run.id, ...fields }, sender);
+  await request('saved-plan', { total: 1 });
+  await request('phase', { phase: 'selecting' });
+  const pending = { kind: 'anonymous', key: 'anonymous-1', anonymousBefore: 3 };
+  assert.equal((await request('saved-pending', { ...pending, anonymousBefore: 0 })).ok, false);
+  assert.equal((await request('saved-pending', pending)).ok, true);
+  await request('phase', { phase: 'waiting' });
+  const complete = { kind: 'anonymous', key: 'anonymous-1', evidenceVerified: true, anonymousAfter: 2, peersUnchanged: true };
+  assert.equal((await request('saved-completed', { ...complete, kind: 'identified' })).ok, false);
+  assert.equal((await request('saved-completed', { ...complete, anonymousAfter: 3 })).ok, false);
+  assert.equal((await request('saved-completed', { ...complete, anonymousAfter: 1 })).ok, false);
+  assert.equal((await request('saved-completed', { ...complete, peersUnchanged: false })).ok, false);
+  assert.equal((await request('saved-completed', complete)).ok, true);
+  assert.equal((await request('saved-completed', complete)).ok, false);
+  assert.equal(bg.run.processed, 1);
 });
 
 test('saved mode respects the item limit and a custom interval', async () => {

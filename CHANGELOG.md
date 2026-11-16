@@ -1,5 +1,13 @@
 # Cambios
 
+## 1.0.7 — 15 de noviembre de 2026
+
+- Añade tratamiento para la tarjeta vacía observada en el DOM real: sólo metadatos Reel, un enlace genérico sin texto y los controles Agregar a colección y Más. También admite esa estructura sin enlace.
+- Procesa una o varias tarjetas sin identificar mediante sus propios menús. Antes de pulsar Eliminar comprueba que el control siga perteneciendo a la tarjeta y que la lista no haya cambiado.
+- Verifica una reducción de exactamente una tarjeta vacía y el mismo conjunto de elementos identificables durante 1.5 segundos. Un cambio de título, una carga parcial o cambios en los demás elementos no bastan para contar la eliminación.
+- Añade un token por operación y comprobaciones de cantidad al protocolo de progreso, manteniendo las comprobaciones de propiedad, pausa y detención.
+- Añade pruebas de tarjetas vacías consecutivas, última tarjeta sin enlace, llegada por scroll, conversión a tarjeta identificable y cancelación. Actualiza las guías en español e inglés.
+
 ## 1.0.6 — 15 de noviembre de 2026
 
 - Corrige una coincidencia confirmada en el DOM real: dos productos con títulos distintos enlazaban a `https://facebook.com/` y recibían la misma identidad basada sólo en enlaces.
