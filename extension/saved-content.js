@@ -82,7 +82,7 @@
         const fresh = anonymous
           ? current.find((item) => item.anonymous && item.more === card?.more) || current.find((item) => item.anonymous)
           : current.find((item) => item.key === key);
-        if (fresh && fresh.more !== card.more) {
+        if (fresh && fresh.more !== card?.more) {
           fresh.more.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" });
         }
         card = fresh;
