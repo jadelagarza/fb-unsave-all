@@ -113,7 +113,7 @@ async function handle(message, sender) {
     const run = await write({
       id: crypto.randomUUID(), tabId: tab.id, documentId: null, status: "running", phase: "starting",
       mode, savedUrl, savedCollection, maxBatches, maxItems, planned: 0, pendingKey: null, pendingKind: null,
-      anonymousBefore: 0, lastCompletedKey: null,
+      anonymousBefore: 0, anonymousGroups: [], lastCompletedKey: null,
       delayMs: delaySeconds * 1000, batches: 0, processed: 0, pendingSelected: 0,
       lastFingerprint: null, awaitingVerification: false, notBefore: 0,
       startedAt: Date.now(), message: "Iniciando…"
@@ -165,15 +165,29 @@ async function handle(message, sender) {
       if (anonymous && (!Number.isInteger(message.anonymousBefore) || message.anonymousBefore < 1 || message.anonymousBefore > 100000)) {
         throw new Error("Cantidad inicial de tarjetas vacías inválida.");
       }
+      const anonymousGroups = anonymous ? (message.anonymousGroups || []) : [];
+      if (!Array.isArray(anonymousGroups) || anonymousGroups.length > 2 ||
+          anonymousGroups.some((count) => !Number.isInteger(count) || count < 1 || count > message.anonymousBefore)) {
+        throw new Error("Los grupos iniciales de tarjetas sin identificar no son válidos.");
+      }
       return { run: await write({ ...run, pendingKey: message.key, pendingKind: kind,
-        anonymousBefore: anonymous ? message.anonymousBefore : 0, phase: "deleting" }) };
+        anonymousBefore: anonymous ? message.anonymousBefore : 0, anonymousGroups, phase: "deleting" }) };
     }
     if (run.phase !== "waiting" || run.pendingKey !== message.key || (run.pendingKind || "identified") !== kind || message.evidenceVerified !== true) throw new Error("No se ha verificado la eliminación del elemento pendiente.");
-    if (anonymous && (!Number.isInteger(message.anonymousAfter) || message.anonymousAfter !== run.anonymousBefore - 1 || message.peersUnchanged !== true)) {
-      throw new Error("No se comprobó la reducción de una tarjeta vacía con los demás elementos intactos.");
+    if (anonymous) {
+      const wholeList = (!message.completionKind || message.completionKind === "anonymous-list") &&
+        Number.isInteger(message.anonymousAfter) && message.anonymousAfter === run.anonymousBefore - 1 && message.peersUnchanged === true;
+      const group = message.completionKind === "anonymous-group" && message.targetAbsent === true &&
+        message.anchorsVerified === true && Number.isInteger(message.groupIndex) && message.groupIndex >= 0 &&
+        message.groupIndex < run.anonymousGroups.length && Number.isInteger(message.groupAfter) &&
+        message.groupAfter === run.anonymousGroups[message.groupIndex] - 1;
+      if (!wholeList && !group) {
+        throw new Error("No se comprobó una reducción de una tarjeta sin identificar en la lista o en un grupo autorizado.");
+      }
     }
     return { run: await write({ ...run, processed: run.processed + 1, pendingKey: null, pendingKind: null,
-      anonymousBefore: 0, lastCompletedKey: message.key,
+      anonymousBefore: 0, anonymousGroups: [], lastCompletedKey: message.key,
+      lastCompletionKind: anonymous ? (message.completionKind || "anonymous-list") : "identified",
       phase: "ready", notBefore: Date.now() + run.delayMs, message: `Elemento ${run.savedCollection ? "quitado de la colección" : "eliminado"} y comprobado. ${run.processed + 1} de ${run.planned}.` }) };
   }
   if (message.type === "phase") {

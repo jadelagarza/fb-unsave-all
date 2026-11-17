@@ -2,7 +2,7 @@
 
 [Español](../README.md) · [Development and verification](DEVELOPMENT.md) · [Changelog](../CHANGELOG.md)
 
-**Version 1.1.0** supports one-at-a-time cleanup in [Facebook Saved](https://www.facebook.com/saved/) and in an open collection (`/saved/?list_id=…`), with automatic scrolling, a configurable delay and a countdown. Collection cleanup uses only **Remove from collection**, including unavailable items, and preserves the collection. Blank cards and Activity Log batches remain supported.
+**Version 1.1.1** fixes verification when Facebook loads more cards during a removal. Anonymous and unavailable cards can be verified inside a bounded group while unrelated cards arrive outside it. Inconclusive verification now reports the specific reason. Saved cleanup, collection membership removal and Activity Log batches remain available.
 
 This removes references from your saved list, not the original posts. The extension cannot restore removed saves. Delays do not guarantee protection from Facebook restrictions. Automated tests use simulated pages. In 1.0.3, real controls and their menu were inspected without removing anything; this does not verify the full real deletion cycle. Test with **one item** on your account before running a larger cleanup.
 
@@ -20,7 +20,7 @@ This removes references from your saved list, not the original posts. The extens
 5. Open **FB Unsave All** from Chrome's extensions menu.
 6. Reload an already-open Facebook tab once to activate the content script.
 
-To update, stop any active run, download the current files or run `git pull`, then click **Reload** on the extension in `chrome://extensions`. Verify version **1.1.0**, also shown in the popup header, and reload Facebook once. Keep the extracted directory in place. No Node.js or npm packages are required for end users. This project has no official Chrome Web Store listing.
+To update, stop any active run, download the current files or run `git pull`, then click **Reload** on the extension in `chrome://extensions`. Verify version **1.1.1**, also shown in the popup header, and reload Facebook once. Keep the extracted directory in place. No Node.js or npm packages are required for end users. This project has no official Chrome Web Store listing.
 
 ## Saved: one item at a time
 
@@ -54,7 +54,7 @@ During the pause, the popup counts down **4 s → 3 s → 2 s → 1 s** from the
 
 Only the exact item-menu action **Eliminar de la colección** or **Remove from collection** is selected. Delete collection, Invite, Share and generic Delete are never selected in this view. **The collection itself is preserved.** Removing membership does not guarantee unsaving the item from the general Saved view or other collections.
 
-Cards displaying **Este producto no está disponible ahora** without a title or link are supported. Repeated unavailable notices are anonymous cards: exactly one must disappear while all identified peers stay unchanged for 1.5 seconds. The same limit, delay, countdown, automatic scrolling and Stop apply.
+Cards displaying **Este producto no está disponible ahora** without a title or link are supported. Repeated unavailable notices are anonymous cards: the original control must disappear and an observed group must contain exactly one fewer anonymous card, with no identified cards appearing inside that group, for 1.5 seconds. New cards may arrive outside its boundaries. Without surviving boundaries, only the strict whole-list count reduction with unchanged identified peers is accepted. The same limit, delay, countdown, automatic scrolling and Stop apply.
 
 A run is bound to its initial collection. Navigating to another collection or the all-items view stops it. Start a new run for another collection. Missing actions or unverified results stop the run without selecting an alternative action or retrying.
 
@@ -62,11 +62,15 @@ A run is bound to its initial collection. Navigating to another collection or th
 
 Version 1.0.7 handles the recognized blank-card structure: item-type metadata such as **Reel**, Add to collection and a known More menu, without a title or specific link. No additional option is required.
 
-It opens that card's menu, clicks Delete once, and requires exactly one fewer blank card, the same set of identifiable peers, no pending loading or dialog, and 1.5 seconds of stability. Multiple blank cards can be processed sequentially with the same delay and maximum.
+It opens that card's menu and clicks Delete once. Since 1.1.1, verification captures immediate neighbors and the anonymous block between identified boundaries. The original control must no longer represent a current card and one bounded group must contain exactly one fewer anonymous card, with no identified cards inside it. New cards outside that group are allowed. If those boundaries are lost, the strict whole-list proof is still available. Both paths require no pending loading or dialog and 1.5 seconds of stability. Multiple blank cards can be processed sequentially with the same delay and maximum.
 
-If other identifiable items change, the blank card becomes identifiable instead of disappearing, or the count does not decrease correctly, the run stops for review without retrying. Cards with indistinguishable identifying data remain subject to the ambiguity check.
+If the original card remains, identifiable content appears inside its group, the group does not shrink by one, or references are lost without whole-list evidence, the run stops without retrying. DOM references to anonymous neighbors are valid only while those controls survive; a full ambiguous replacement is not counted. Cards with indistinguishable identifying data remain subject to the ambiguity check.
 
 When no recognized pending cards remain, it scrolls to load more. Loading is allowed to finish, with a bounded timeout. If three scroll attempts yield no new cards, the run ends with an explanation. **No page reload occurs between items.** The final message distinguishes an explicitly empty view from Facebook failing to deliver more cards. Neither proves that every server-side save has been checked.
+
+### Verification failure details
+
+Timeouts now identify the reason: original card still present, lost references after structural changes, identifiable content inside the observed group, no one-card reduction, pending loading, open menu/dialog, no recognizable list or result not stable long enough. They do not imply that Facebook rejected the removal; check the open view manually before a new run. No automatic retry or rescue reload occurs. For identified cards, unrelated arrivals no longer reset the stability timer.
 
 ## Activity Log batches
 

@@ -52,6 +52,56 @@ async function setup(t, fixtureOptions = {}, url = 'https://www.facebook.com/sav
 describe('Saved page extension fixtures', { concurrency: 3 }, () => {
   const collectionUrl = 'https://www.facebook.com/saved/?list_id=12345&referrer=SAVE_DASHBOARD_NAVIGATION_PANEL';
 
+  test('anonymous verification tolerates new cards outside an identified group after full feed replacement', { timeout: 25000 }, async (t) => {
+    const h = await setup(t, { collection: true, initial: 5, unavailableIds: [2, 3], appendOnDelete: true, nestedMain: true, footerLoading: true }, collectionUrl);
+    assert.equal((await h.start({ maxItems: 3 })).ok, true);
+    const run = await h.untilStatus('finished', 20000);
+    assert.equal(run.processed, 3);
+    assert.equal(run.lastCompletionKind, 'anonymous-group');
+    const events = await h.events();
+    assert.deepEqual(events.filter(e => e.type === 'remove-collection').map(e => e.id), [1, 2, 3]);
+    assert.equal(events.filter(e => e.type === 'arrived').length, 3);
+    assert.equal(events.filter(e => e.type === 'wrong-action').length, 0);
+  });
+
+  test('surviving anonymous neighbor controls verify a removal even when replenishment keeps the global count unchanged', { timeout: 25000 }, async (t) => {
+    const h = await setup(t, { collection: true, unavailableIds: [1, 2, 3], incremental: true, appendOnDelete: true, appendAnonymousOnly: true }, collectionUrl);
+    assert.equal((await h.start({ maxItems: 3 })).ok, true);
+    const run = await h.untilStatus('finished', 20000);
+    assert.equal(run.processed, 3);
+    assert.equal(run.lastCompletionKind, 'anonymous-group');
+    const events = await h.events();
+    assert.deepEqual(events.filter(e => e.type === 'remove-collection').map(e => e.id), [1, 2, 3]);
+    assert.equal(await h.page.locator('[data-card]').count(), 3);
+  });
+
+  test('replacement of anonymous DOM with replenishment but no removal is not counted and explains the lost references', { timeout: 40000 }, async (t) => {
+    const h = await setup(t, { collection: true, unavailableIds: [1, 2, 3], noProgress: true, appendOnDelete: true, appendAnonymousOnly: true }, collectionUrl);
+    assert.equal((await h.start({ maxItems: 1 })).ok, true);
+    const run = await h.untilStatus('blocked', 35000);
+    assert.equal(run.processed, 0);
+    assert.match(run.message, /Motivo:.*referencias/);
+    assert.equal((await h.events()).filter(e => e.type === 'remove-collection').length, 1);
+  });
+
+  test('removal of a different anonymous card never counts while the original target control survives', { timeout: 40000 }, async (t) => {
+    const h = await setup(t, { collection: true, unavailableIds: [1, 2, 3], incremental: true, removeOtherId: 3 }, collectionUrl);
+    assert.equal((await h.start({ maxItems: 1 })).ok, true);
+    const run = await h.untilStatus('blocked', 35000);
+    assert.equal(run.processed, 0);
+    assert.match(run.message, /Motivo: la tarjeta original sigue presente/);
+    assert.equal((await h.events()).filter(e => e.type === 'remove-collection').length, 1);
+  });
+
+  test('an unavailable card acquiring a link within its bounded group is not counted as removed', { timeout: 40000 }, async (t) => {
+    const h = await setup(t, { collection: true, unavailableIds: [1], promoteUnavailableInsteadDelete: true }, collectionUrl);
+    assert.equal((await h.start({ maxItems: 1 })).ok, true);
+    const run = await h.untilStatus('blocked', 35000);
+    assert.equal(run.processed, 0);
+    assert.match(run.message, /Motivo:.*información identificable/);
+    assert.equal((await h.events()).filter(e => e.type === 'remove-collection').length, 1);
+  });
+
   test('collection cleanup removes available and repeated unavailable cards only through Remove from collection', { timeout: 25000 }, async (t) => {
     const h = await setup(t, { collection: true, initial: 4, unavailableIds: [2, 3], nestedMain: true, singularHeading: true, otherMain: true, hiddenMain: true, footerLoading: true }, collectionUrl);
     const result = await h.request('inspect');

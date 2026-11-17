@@ -2,7 +2,7 @@
 
 Extensión local de Google Chrome para quitar los elementos guardados de tu cuenta de Facebook mediante sus controles visibles.
 
-**Versión 1.1.0.** Permite limpiar uno por uno desde [Guardados](https://www.facebook.com/saved/) o desde una colección abierta (`/saved/?list_id=…`), con espera configurable, cuenta regresiva y scroll automático. En una colección usa exclusivamente **Eliminar de la colección**, también para contenido no disponible, y conserva la colección. Mantiene las tarjetas vacías y los lotes del Registro de actividad.
+**Versión 1.1.1.** Corrige la verificación de tarjetas vacías o no disponibles cuando Facebook carga nuevos elementos durante una eliminación. Usa referencias cercanas para comprobar una reducción dentro del grupo observado, en lugar de exigir siempre que toda la lista permanezca igual. Si falta evidencia, el mensaje indica el motivo concreto. Conserva la limpieza de Guardados, los elementos de colecciones y los lotes del Registro de actividad.
 
 [English guide](docs/README.en.md) · [Desarrollo y pruebas](docs/DEVELOPMENT.md) · [Historial de cambios](CHANGELOG.md)
 
@@ -45,7 +45,7 @@ Mantén la carpeta en el mismo lugar mientras esté instalada. Este proyecto no 
 
 1. Detén cualquier ejecución activa.
 2. Descarga la versión actual o ejecuta `git pull` en tu clon.
-3. En `chrome://extensions`, pulsa **Recargar** en FB Unsave All y comprueba la versión **1.1.0**, también visible en la cabecera del panel.
+3. En `chrome://extensions`, pulsa **Recargar** en FB Unsave All y comprueba la versión **1.1.1**, también visible en la cabecera del panel.
 4. Recarga Facebook una vez. Esta recarga es necesaria para reemplazar el script anterior.
 5. Abre de nuevo el panel y selecciona el modo deseado. El modo predeterminado ahora es **Guardados y colecciones: uno por uno**.
 
@@ -70,7 +70,7 @@ Mantén la carpeta en el mismo lugar mientras esté instalada. Este proyecto no 
 
 El script abre los tres puntos de cada elemento y pulsa **exclusivamente Eliminar de la colección** (o **Remove from collection** en inglés). Nunca pulsa Eliminar colección, Invitar, Compartir ni Eliminar genérico en esta vista. **La colección no se borra.** Quitar un elemento de una colección no garantiza quitarlo de la vista general de Guardados ni de otras colecciones.
 
-Las tarjetas con el aviso **Este producto no está disponible ahora** también se procesan, aunque no tengan enlace ni título propio. Varios avisos idénticos se tratan como tarjetas sin identificar: se exige una menos, el mismo conjunto de elementos identificables y 1.5 segundos de estabilidad antes de contar la acción.
+Las tarjetas con el aviso **Este producto no está disponible ahora** también se procesan, aunque no tengan enlace ni título propio. Varios avisos idénticos se tratan como tarjetas sin identificar: se exige una menos dentro de un grupo delimitado por referencias conservadas, sin que la tarjeta original siga presente ni aparezcan elementos identificables en ese grupo, y 1.5 segundos de estabilidad. Pueden cargarse nuevas tarjetas fuera de esos límites. Si no sobreviven referencias locales, sólo se admite la comprobación estricta de una tarjeta menos en toda la lista con los mismos elementos identificables.
 
 Se conservan el límite, la espera con cuenta regresiva, el scroll automático y Detener. La ejecución queda vinculada a la colección inicial: cambiar a otra colección o a todos los guardados la detiene. Para otra colección, abre su página y comienza una ejecución nueva. Si no aparece la opción exacta o no se puede verificar el resultado, se detiene sin probar otra acción.
 
@@ -98,9 +98,9 @@ Durante la pausa, el panel muestra el tiempo restante: **4 s → 3 s → 2 s →
 
 Desde 1.0.7, una tarjeta que sólo muestra metadatos como **Reel**, junto con Agregar a colección y un menú Más reconocible, puede procesarse aunque no tenga título ni enlace propio. No necesitas activar una opción adicional.
 
-El script abre el menú de esa tarjeta, pulsa Eliminar una sola vez y espera a comprobar que hay **exactamente una tarjeta vacía menos**, con el mismo conjunto de elementos identificables y sin carga o diálogos pendientes. Exige 1.5 segundos de estabilidad antes de aumentar el contador y continuar. Admite varias tarjetas vacías consecutivas y respeta el máximo y la pausa configurados.
+El script abre el menú de esa tarjeta y pulsa Eliminar una sola vez. Desde 1.1.1 captura sus vecinas inmediatas y el grupo de tarjetas sin identificar entre referencias identificables. Comprueba que la tarjeta original ya no esté y que haya **exactamente una tarjeta sin identificar menos dentro de uno de esos grupos**, sin que aparezca información identificable dentro de él. Permite nuevos elementos fuera del grupo. Si no conserva esos límites, exige una tarjeta menos en toda la lista con el mismo conjunto de elementos identificables. En ambos casos exige 1.5 segundos de estabilidad, sin carga ni diálogos pendientes, antes de aumentar el contador y continuar. Admite varias tarjetas vacías consecutivas y respeta el máximo y la pausa configurados.
 
-Si cambia el resto de la lista, la tarjeta empieza a mostrar información en lugar de desaparecer o no se confirma la reducción, se detiene para revisión. No repite automáticamente esa eliminación. Las tarjetas con datos presentes pero idénticos que no permiten distinguirlas mantienen su comprobación de ambigüedad.
+Si la tarjeta sigue presente, empieza a mostrar información dentro del grupo, se pierden las referencias y tampoco sirve la comprobación global, o no se confirma la reducción, se detiene para revisión e informa el motivo. No repite automáticamente esa eliminación. Las referencias DOM sin identidad sólo sirven mientras sus controles se conserven; si Facebook reconstruye todo sin dejar evidencia suficiente, se detiene. Las tarjetas con datos presentes pero idénticos que no permiten distinguirlas mantienen su comprobación de ambigüedad.
 
 ## Registro de actividad: lotes
 
@@ -139,7 +139,7 @@ Si Facebook deja de mostrar elementos anteriores a cierta fecha en el Registro d
 | «Áreas independientes» o «tarjetas fuera del área identificada» | Hay más de una lista reconocible y no se puede escoger una con certeza. La ejecución se detiene antes de abrir menús. Revisa la vista y reporta el mensaje exacto. |
 | No se reconoce una tarjeta o su menú | Comprueba que estés en Guardados o una colección compatible, en español o inglés, con tarjetas cargadas y su menú Más. Guarda el mensaje exacto para reportarlo. |
 | Eliminar no aparece en el menú | La extensión se detiene. No se pulsa otra opción parecida ni un botón de otra parte de la página. |
-| Se quitó una tarjeta pero no avanza el contador | No pudo verificar su desaparición con la interfaz disponible. Revisa manualmente, detén la ejecución y vuelve a comprobar la página. No se repite la eliminación automáticamente. |
+| Se quitó una tarjeta pero no avanza el contador | Actualiza a 1.1.1 y recarga la extensión y Facebook. Se permiten nuevas tarjetas fuera del grupo observado. Si se detiene, lee el Motivo: tarjeta presente, referencias perdidas, información identificable nueva dentro del grupo, cantidad sin reducción, carga pendiente, menú/diálogo abierto, lista no reconocida o resultado inestable. Revisa manualmente antes de iniciar otra ejecución; no se reintenta automáticamente. |
 | Termina aunque sabes que quedan guardados | Facebook puede estar limitando la carga, haber virtualizado tarjetas o mostrar un filtro. Vuelve a la vista general, revisa por tu cuenta y comienza otro recorrido desde arriba si corresponde. |
 | No se pudo comprobar la cantidad seleccionada | Este mensaje corresponde al modo por lotes. Actualiza, recarga la extensión y Facebook, y prueba un lote. |
 | CAPTCHA, solicitud de contraseña, bloqueo o verificación | Detén el proceso y resuelve la situación manualmente. |

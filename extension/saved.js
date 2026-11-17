@@ -316,11 +316,22 @@
   }
   function captureAnonymous(card) {
     const current = cards();
-    if (!current.some((item) => item.anonymous && item.more === card.more)) {
+    const index = current.findIndex((item) => item.anonymous && item.more === card.more);
+    if (index < 0) {
       throw new Error("La tarjeta vacía cambió después de abrir su menú. Revisa la página.");
     }
+    let left = index - 1;
+    let right = index + 1;
+    while (left >= 0 && current[left].anonymous) left--;
+    while (right < current.length && current[right].anonymous) right++;
+    // Anonymous neighbors are useful only while their exact controls survive.
+    // Identified neighbors can also delimit the same group after a full rerender.
+    const groups = [
+      { left: current[index - 1] || null, right: current[index + 1] || null, before: 1 },
+      { left: current[left] || null, right: current[right] || null, before: right - left - 1 }
+    ].filter((group) => group.left || group.right);
     return {
-      kind: "anonymous",
+      kind: "anonymous", targetMore: card.more, groups,
       beforeAnonymous: current.filter((item) => item.anonymous).length,
       identifiedKeys: identifiedKeys(current)
     };
@@ -331,6 +342,42 @@
       current.filter((item) => item.anonymous).length === snapshot.beforeAnonymous &&
       sameKeys(identifiedKeys(current), snapshot.identifiedKeys);
   }
+  function boundaryIndex(current, boundary) {
+    if (!boundary) return null;
+    return current.findIndex((card) => boundary.anonymous
+      ? card.anonymous && card.more === boundary.more
+      : !card.anonymous && card.key === boundary.key);
+  }
+  function anonymousEvidence(target, current, keys, anonymousAfter) {
+    const original = current.find((card) => card.more === target.targetMore);
+    if (original) {
+      return { removed: false, reason: original.anonymous ? "target-present" : "identity-changed" };
+    }
+    let pending = { removed: false, reason: "references-lost" };
+    for (let groupIndex = 0; groupIndex < target.groups.length; groupIndex++) {
+      const group = target.groups[groupIndex];
+      const left = group.left ? boundaryIndex(current, group.left) : -1;
+      const right = group.right ? boundaryIndex(current, group.right) : current.length;
+      if ((group.left && left < 0) || (group.right && right < 0) || left >= right) continue;
+      const between = current.slice(left + 1, right);
+      const onlyAnonymous = between.every((card) => card.anonymous);
+      const groupAfter = between.filter((card) => card.anonymous).length;
+      if (onlyAnonymous && groupAfter === group.before - 1) {
+        return { removed: true, completionKind: "anonymous-group", groupIndex,
+          groupBefore: group.before, groupAfter, anchorsVerified: true, targetAbsent: true,
+          signature: `anonymous-group:${groupIndex}:${groupAfter}` };
+      }
+      pending = { removed: false, reason: onlyAnonymous ? "count-mismatch" : "identity-changed",
+        groupBefore: group.before, groupAfter };
+    }
+    // Preserve the strict whole-list proof when no bounded group survives.
+    const peersUnchanged = sameKeys(keys, target.identifiedKeys);
+    if (anonymousAfter === target.beforeAnonymous - 1 && peersUnchanged) {
+      return { removed: true, completionKind: "anonymous-list", targetAbsent: true,
+        signature: `anonymous-list:${anonymousAfter}:${keys.join(",")}` };
+    }
+    return pending;
+  }
   function deletionState(target) {
     const scope = assertPage();
     const current = cards();
@@ -338,16 +385,20 @@
     const anonymousAfter = current.filter((card) => card.anonymous).length;
     const anonymous = target?.kind === "anonymous";
     const peersUnchanged = anonymous && sameKeys(keys, target.identifiedKeys);
-    const removed = anonymous
-      ? anonymousAfter === target.beforeAnonymous - 1 && peersUnchanged
-      : !current.some((card) => card.key === target);
-    // Disappearance of the action buttons alone (e.g. during a rerender) is not evidence.
+    const proof = anonymous ? anonymousEvidence(target, current, keys, anonymousAfter) : {
+      removed: !current.some((card) => card.key === target), completionKind: "identified",
+      signature: `identified:${target}`, reason: "target-present"
+    };
     const explicitEmpty = hasEmptyMessage(scope);
-    return { removed, anonymousAfter, peersUnchanged,
-      ready: !loading() && !openMenus().length &&
-      !all(document, '[role="dialog"],[role="alertdialog"]').length,
-      hasList: current.length > 0 || explicitEmpty || footerLoaders(scope).length > 0, empty: current.length === 0 && explicitEmpty,
-      signature: JSON.stringify({ keys, anonymous: anonymousAfter }) };
+    const busy = loading();
+    const menuOpen = openMenus().length > 0;
+    const dialogOpen = all(document, '[role="dialog"],[role="alertdialog"]').length > 0;
+    const hasList = current.length > 0 || explicitEmpty || footerLoaders(scope).length > 0;
+    const reason = busy ? "loading" : menuOpen ? "menu" : dialogOpen ? "dialog" :
+      !hasList ? "no-list" : proof.removed ? "unstable" : proof.reason;
+    return { ...proof, reason, anonymousAfter, peersUnchanged,
+      ready: !busy && !menuOpen && !dialogOpen, hasList,
+      empty: current.length === 0 && explicitEmpty };
   }
   function scrollMore() {
     const scope = assertPage();

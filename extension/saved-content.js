@@ -20,7 +20,7 @@
         if (value) return value;
         await pause(100);
       }
-      throw new Error(error);
+      throw new Error(typeof error === "function" ? error() : error);
     }
     async function phase(value, text) {
       await check();
@@ -103,7 +103,7 @@
       }
       run = (await send("saved-pending", {
         id: run.id, key, kind,
-        ...(anonymous ? { anonymousBefore: snapshot.beforeAnonymous } : {})
+        ...(anonymous ? { anonymousBefore: snapshot.beforeAnonymous, anonymousGroups: snapshot.groups.map((group) => group.before) } : {})
       })).run;
       await check();
       if (anonymous && !dom.anonymousTargetReady(card, snapshot)) {
@@ -111,20 +111,40 @@
       }
       remove.click();
       await phase("waiting", anonymous
-        ? "Comprobando que disminuya una tarjeta vacía y se conserven los demás elementos…"
+        ? "Comprobando la retirada de la tarjeta sin identificar y sus referencias cercanas…"
         : "Esperando a comprobar que desapareció la tarjeta…");
       let since = 0;
       let signature;
+      let lastState;
       const completion = await waitFor(() => {
-        const state = dom.deletionState(snapshot);
+        const state = lastState = dom.deletionState(snapshot);
         if (!state.removed || !state.ready || !state.hasList) { since = 0; return false; }
         if (!since || signature !== state.signature) { signature = state.signature; since = Date.now(); }
         return Date.now() - since >= (anonymous ? 1500 : 1000) ? state : null;
-      }, 30000, "No se pudo verificar la eliminación de la tarjeta. Se detuvo sin reintentar ni recargar; revisa Guardados.");
+      }, 30000, () => {
+        const reasons = {
+          "loading": "Facebook sigue mostrando carga pendiente",
+          "menu": "el menú de la tarjeta sigue abierto",
+          "dialog": "hay un diálogo pendiente en Facebook",
+          "no-list": "no se reconoce una lista disponible ni un estado vacío explícito",
+          "target-present": "la tarjeta original sigue presente",
+          "identity-changed": "apareció información identificable dentro del grupo observado; no se puede atribuir el cambio a una retirada",
+          "references-lost": "cambió la estructura de la lista y se perdieron las referencias necesarias para comprobar la tarjeta",
+          "count-mismatch": "el grupo observado no disminuyó exactamente en una tarjeta",
+          "unstable": "el resultado no permaneció estable el tiempo necesario"
+        };
+        const detail = reasons[lastState?.reason] || "no se obtuvo evidencia suficiente de la retirada";
+        return `No se pudo verificar la eliminación de la tarjeta. Motivo: ${detail}. Se detuvo sin reintentar ni recargar; revisa la vista abierta.`;
+      });
       await check();
       run = (await send("saved-completed", {
         id: run.id, key, kind, evidenceVerified: true,
-        ...(anonymous ? { anonymousAfter: completion.anonymousAfter, peersUnchanged: completion.peersUnchanged } : {})
+        ...(anonymous ? {
+          completionKind: completion.completionKind,
+          anonymousAfter: completion.anonymousAfter, peersUnchanged: completion.peersUnchanged,
+          groupIndex: completion.groupIndex, groupAfter: completion.groupAfter,
+          anchorsVerified: completion.anchorsVerified, targetAbsent: completion.targetAbsent
+        } : {})
       })).run;
       if (anonymous) anonymousCompleted++;
       else completed.add(key);

@@ -1,6 +1,6 @@
 {
   "name": "fb-unsave-all",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "description": "A local Chrome extension to clean Facebook Saved, collection items, or Activity Log batches.",
   "license": "MIT",

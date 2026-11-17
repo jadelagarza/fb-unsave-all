@@ -51,7 +51,7 @@ async function harness(options = {}) {
         }, 600);
       } };
     },
-    captureAnonymous: () => ({ kind: 'anonymous', beforeAnonymous: anonymousCount(), identifiedKeys: knownKeys() }),
+    captureAnonymous: () => ({ kind: 'anonymous', groups: [], beforeAnonymous: anonymousCount(), identifiedKeys: knownKeys() }),
     anonymousTargetReady: (card, snapshot) => items.includes(card.testId) && anonymousIds.has(card.testId) &&
       anonymousCount() === snapshot.beforeAnonymous && sameKeys(snapshot.identifiedKeys),
     deletionState: (target) => {
@@ -60,6 +60,7 @@ async function harness(options = {}) {
         removed: target?.kind === 'anonymous'
           ? anonymousCount() === target.beforeAnonymous - 1 && peersUnchanged
           : !items.includes(target),
+        completionKind: 'anonymous-list', reason: loading ? 'loading' : options.noProgress ? 'target-present' : 'references-lost',
         anonymousAfter: anonymousCount(), peersUnchanged, ready: !loading && !menu,
         hasList: true, empty: items.length === 0, signature: items.join(',')
       };
@@ -289,4 +290,49 @@ test('a collection switch during Start inspection cannot authorize stale cards',
   const result = await bg.request('start', { mode: 'saved', acknowledged: true, maxItems: 2, delaySeconds: 4 });
   assert.equal(result.ok, false);
   assert.equal(bg.run, null);
+});
+
+
+test('bounded-group completion is tied to the pre-click group and does not require a global count decrease', async () => {
+  const bg = backgroundHarness();
+  bg.setTabUrl('https://www.facebook.com/saved/');
+  bg.setPageHandler(async () => ({ ok: true, inspection: {
+    mode: 'saved', pageUrl: 'https://www.facebook.com/saved/', collection: false, ready: true, empty: false
+  } }));
+  await bg.request('start', { mode: 'saved', acknowledged: true, maxItems: 1, delaySeconds: 4 });
+  const sender = bg.pageSender();
+  const run = (await bg.request('hello', {}, sender)).run;
+  const request = (type, fields = {}, from = sender) => bg.request(type, { id: run.id, ...fields }, from);
+  await request('saved-plan', { total: 1 });
+  await request('phase', { phase: 'selecting' });
+  for (const anonymousGroups of [[0], [6], [1, 2, 3], ['1']]) {
+    assert.equal((await request('saved-pending', { key: 'anonymous-1', kind: 'anonymous', anonymousBefore: 5, anonymousGroups })).ok, false);
+  }
+  assert.equal((await request('saved-pending', { key: 'anonymous-1', kind: 'anonymous', anonymousBefore: 5, anonymousGroups: [1, 3] })).ok, true);
+  await request('phase', { phase: 'waiting' });
+  const completed = { key: 'anonymous-1', kind: 'anonymous', evidenceVerified: true,
+    completionKind: 'anonymous-group', groupIndex: 1, groupAfter: 2,
+    anchorsVerified: true, targetAbsent: true, anonymousAfter: 10, peersUnchanged: false };
+  for (const patch of [
+    { groupIndex: -1 }, { groupIndex: 2 }, { groupAfter: 3 }, { groupAfter: -1 },
+    { anchorsVerified: false }, { targetAbsent: false }, { evidenceVerified: false },
+    { key: 'anonymous-2' }, { completionKind: 'unknown' }
+  ]) assert.equal((await request('saved-completed', { ...completed, ...patch })).ok, false);
+  assert.equal((await request('saved-completed', completed, bg.pageSender('other-document'))).ok, false);
+  assert.equal(bg.run.processed, 0);
+  assert.equal((await request('saved-completed', completed)).ok, true);
+  assert.equal(bg.run.processed, 1);
+  assert.equal(bg.run.lastCompletionKind, 'anonymous-group');
+  assert.equal((await request('saved-completed', completed)).ok, false);
+});
+
+test('verification timeouts identify pending loading and a target that did not disappear', async () => {
+  const busy = await harness({ anonymousIds: ['a'], stuck: true });
+  await busy.clock.until(() => busy.bg.run.status === 'blocked');
+  assert.match(busy.bg.run.message, /Motivo: Facebook sigue mostrando carga pendiente/);
+  assert.equal(busy.bg.run.processed, 0);
+  const unchanged = await harness({ anonymousIds: ['a'], noProgress: true });
+  await unchanged.clock.until(() => unchanged.bg.run.status === 'blocked');
+  assert.match(unchanged.bg.run.message, /Motivo: la tarjeta original sigue presente/);
+  assert.equal(unchanged.bg.run.processed, 0);
 });

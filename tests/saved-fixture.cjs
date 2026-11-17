@@ -10,6 +10,8 @@ module.exports = function fixture(options = {}) {
   const options=${JSON.stringify(options)};
   let ids=Array.from({length:options.initial??3},(_,i)=>i+1);
   const blankIds = new Set(options.blankIds || []);
+  const unavailableIds = new Set(options.unavailableIds || []);
+  let nextAddedId = 100;
   let queued=options.moreOnScroll?[4,5]:[];
   let deleted=0;
   let renderCount=0;
@@ -52,14 +54,14 @@ module.exports = function fixture(options = {}) {
   }
   function render(){
     renderCount++;
-    feed.innerHTML=ids.map(id=>{
+    const html=ids.map(id=>{
       if (options.collection) {
-        const unavailable = (options.unavailableIds || []).includes(id);
+        const unavailable = unavailableIds.has(id);
         const thumbnail = '<img alt="imagen" width="144" height="144">';
         const content = unavailable
           ? thumbnail + '<div>Este producto no está disponible ahora.</div><div>Es posible que haya cambiado la configuración de privacidad o que haya caducado.</div>'
           : '<a href="/watch/?ref=saved&v=' + id + '">' + thumbnail + '</a><a href="/watch/?ref=saved&v=' + id + '">Video de Demo ' + id + '</a><span>Reels • Demo</span>';
-        return '<div data-card style="padding:20px;margin:10px;background:white;width:650px;min-height:180px">' + content +
+        return '<div data-fixture-id="' + id + '" data-card style="padding:20px;margin:10px;background:white;width:650px;min-height:180px">' + content +
           '<div><div role="button" tabindex="0" data-more="' + id + '" aria-label="Más" aria-haspopup="dialog" style="display:inline-block;padding:12px">…</div></div></div>';
       }
       const blank = blankIds.has(id);
@@ -99,6 +101,20 @@ module.exports = function fixture(options = {}) {
         : '';
       return '<article><a href="' + titleHref + '">' + titleText + '</a>' + price + nested + '</article>';
     }).join('');
+    if (options.incremental && options.collection) {
+      const template = document.createElement('div');
+      template.innerHTML = html;
+      const desired = Array.from(template.children);
+      for (const old of Array.from(feed.children)) {
+        if (!ids.includes(Number(old.dataset.fixtureId))) old.remove();
+      }
+      for (const fresh of desired) {
+        const old = Array.from(feed.children).find(node => node.dataset.fixtureId === fresh.dataset.fixtureId);
+        feed.append(old || fresh);
+      }
+    } else {
+      feed.innerHTML = html;
+    }
     if(footer)footer.hidden=ids.length===0&&queued.length===0&&!loading;
     document.getElementById('empty').hidden=ids.length>0||loading||(footer&&queued.length>0);
     feed.querySelectorAll('[data-add],[data-share]').forEach(button=>button.onclick=()=>record('wrong-action'));
@@ -122,9 +138,20 @@ module.exports = function fixture(options = {}) {
       if(options.security){const alert=document.createElement('p');alert.setAttribute('role','alert');alert.textContent='Confirma tu identidad';document.body.append(alert);return;}
       setTimeout(()=>{
         loading=false;busy.hidden=true;
-        if (options.promoteBlankInsteadDelete && blankIds.has(id)) {
+        if (options.removeOtherId) {
+          ids = ids.filter(value => value !== options.removeOtherId);
+        } else if (options.promoteUnavailableInsteadDelete && unavailableIds.has(id)) {
+          unavailableIds.delete(id);
+        } else if (options.promoteBlankInsteadDelete && blankIds.has(id)) {
           blankIds.delete(id);
         } else if(!options.noProgress){ids=ids.filter(value=>value!==id);deleted++;}
+        if (options.appendOnDelete) {
+          const anonymousId = nextAddedId++;
+          unavailableIds.add(anonymousId);
+          ids.push(anonymousId);
+          if (!options.appendAnonymousOnly) ids.push(nextAddedId++);
+          record('arrived', anonymousId);
+        }
         render();record('removed',id);
       },300);
     };

@@ -1,5 +1,14 @@
 # Cambios
 
+## 1.1.1 — 16 de noviembre de 2026
+
+- Corrige la verificación de tarjetas vacías o no disponibles cuando Facebook incorpora nuevos elementos durante la retirada: permite una reducción dentro de un grupo delimitado por vecinas conservadas o referencias identificables, sin exigir que toda la lista permanezca igual.
+- Exige que el control objetivo ya no corresponda a una tarjeta actual y que no aparezca información identificable dentro del intervalo. Una reconstrucción o la retirada de otra tarjeta no bastan para contar el objetivo.
+- Conserva la comprobación global estricta cuando no sirve un grupo. La estabilidad se calcula sobre la evidencia del objetivo, sin reiniciarse por altas ajenas.
+- Registra las cantidades iniciales de grupo antes del clic y valida el tipo, índice, reducción y evidencia en el protocolo de progreso.
+- Añade motivos concretos a los tiempos agotados: tarjeta presente, referencias perdidas, cambio de identidad, cantidad sin reducción, carga pendiente, menú o diálogo abierto, lista no reconocida y resultado inestable.
+- Añade pruebas de reposición, reconstrucción, ausencia de progreso, cambios de identidad y protocolo. Actualiza las guías y la documentación de desarrollo. Mantiene las acciones exclusivas de colección, límites, pausas, scroll y Detener.
+
 ## 1.1.0 — 16 de noviembre de 2026
 
 - Añade limpieza uno por uno dentro de una colección abierta en `/saved/?list_id=…`, con el mismo límite, pausa configurable, cuenta regresiva, scroll automático y Detener.
