@@ -5,6 +5,7 @@ const { vm, source, Clock, backgroundHarness } = require('./helpers.cjs');
 async function harness(options = {}) {
   const clock = new Clock();
   const bg = backgroundHarness(clock);
+  bg.setTabUrl("https://www.facebook.com/saved/");
   const events = [];
   let items = options.items || ['a', 'b'];
   const anonymousIds = new Set(options.anonymousIds || []);
@@ -72,7 +73,7 @@ async function harness(options = {}) {
     }
   };
   bg.setPageHandler(async (message) => message.type === 'inspect' ?
-    { ok: true, inspection: { mode: 'saved', ready: true, empty: false, loaded: 2 } } : { ok: true });
+    { ok: true, inspection: { mode: 'saved', pageUrl: 'https://www.facebook.com/saved/', collection: false, ready: true, empty: false, loaded: 2 } } : { ok: true });
   const started = await bg.request('start', { mode: 'saved', acknowledged: true,
     maxItems: options.maxItems ?? 0, delaySeconds: options.delaySeconds ?? 4 });
   assert.equal(started.ok, true, started.error);
@@ -148,7 +149,8 @@ test('Stop during an anonymous removal cannot be overwritten by a later completi
 
 test('anonymous protocol requires a matching operation, a one-card decrease and unchanged peers', async () => {
   const bg = backgroundHarness();
-  bg.setPageHandler(async () => ({ ok: true, inspection: { mode: 'saved', ready: true, empty: false } }));
+  bg.setTabUrl("https://www.facebook.com/saved/");
+  bg.setPageHandler(async () => ({ ok: true, inspection: { mode: 'saved', pageUrl: 'https://www.facebook.com/saved/', collection: false, ready: true, empty: false } }));
   await bg.request('start', { mode: 'saved', acknowledged: true, maxItems: 1, delaySeconds: 4 });
   const sender = bg.pageSender();
   const { run } = await bg.request('hello', {}, sender);
@@ -213,7 +215,8 @@ test('a security message prevents subsequent items', async () => {
 
 test('saved protocol validates settings, owner, progress evidence, duplicates and reloads', async () => {
   const bg = backgroundHarness();
-  bg.setPageHandler(async () => ({ ok: true, inspection: { mode: 'saved', ready: true, empty: false } }));
+  bg.setTabUrl("https://www.facebook.com/saved/");
+  bg.setPageHandler(async () => ({ ok: true, inspection: { mode: 'saved', pageUrl: 'https://www.facebook.com/saved/', collection: false, ready: true, empty: false } }));
   const settings = { mode: 'saved', acknowledged: true, maxItems: 2, delaySeconds: 4 };
   for (const invalid of [{ mode: 'other' }, { acknowledged: false }, { delaySeconds: 0 }, { delaySeconds: 1.5 }, { maxItems: -1 }]) {
     assert.equal((await bg.request('start', { ...settings, ...invalid })).ok, false);
@@ -251,4 +254,39 @@ test('all shipped version declarations agree on the release', () => {
   assert.equal(json('extension/manifest.json').version, version);
   assert.equal(json('package-lock.json').version, version);
   assert.equal(json('package-lock.json').packages[''].version, version);
+});
+
+
+test('collection authorization is canonical and cannot be reused in another collection or the all-items view', async () => {
+  const bg = backgroundHarness();
+  bg.setTabUrl('https://www.facebook.com/saved/?list_id=123&referrer=sidebar');
+  bg.setPageHandler(async () => ({ ok: true, inspection: {
+    mode: 'saved', ready: true, empty: false, collection: true,
+    pageUrl: 'https://www.facebook.com/saved/?list_id=123'
+  } }));
+  assert.equal((await bg.request('start', { mode: 'saved', acknowledged: true, maxItems: 2, delaySeconds: 4 })).ok, true);
+  assert.equal(bg.run.savedCollection, true);
+  assert.equal(bg.run.savedUrl, 'https://www.facebook.com/saved/?list_id=123');
+  bg.setTabUrl('https://www.facebook.com/saved?referrer=other&list_id=123');
+  const sender = bg.pageSender();
+  const run = (await bg.request('hello', {}, sender)).run;
+  assert.equal((await bg.request('check', { id: run.id }, bg.pageSender())).ok, true);
+  bg.setTabUrl('https://www.facebook.com/saved/?list_id=456');
+  assert.equal((await bg.request('check', { id: run.id }, bg.pageSender())).ok, false);
+  assert.equal(bg.run.status, 'blocked');
+  assert.equal(bg.run.processed, 0);
+  assert.equal((await bg.request('phase', { id: run.id, phase: 'selecting' }, sender)).ok, false);
+});
+
+test('a collection switch during Start inspection cannot authorize stale cards', async () => {
+  const bg = backgroundHarness();
+  bg.setTabUrl('https://www.facebook.com/saved/?list_id=123');
+  bg.setPageHandler(async () => {
+    bg.setTabUrl('https://www.facebook.com/saved/?list_id=456');
+    return { ok: true, inspection: { mode: 'saved', ready: true, empty: false,
+      collection: true, pageUrl: 'https://www.facebook.com/saved/?list_id=123' } };
+  });
+  const result = await bg.request('start', { mode: 'saved', acknowledged: true, maxItems: 2, delaySeconds: 4 });
+  assert.equal(result.ok, false);
+  assert.equal(bg.run, null);
 });

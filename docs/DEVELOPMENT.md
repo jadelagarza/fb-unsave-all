@@ -71,7 +71,7 @@ Durante `cooldown`, el panel calcula los segundos restantes desde `run.notBefore
 
 ### Guardados: uno por uno
 
-Exige la ruta `/saved/`, origen exacto `https://www.facebook.com` y un título reconocido en español o inglés, incluido «Guardado» en singular. Rechaza rutas de colecciones y parámetros de colección. No confunde una lista sin tarjetas reconocibles con una cuenta vacía.
+Exige la ruta `/saved/`, origen exacto `https://www.facebook.com` y un título reconocido en español o inglés, incluido «Guardado» en singular. Desde 1.1.0 también admite una colección en `/saved/?list_id=…`, con un único identificador numérico. Rechaza parámetros de colección desconocidos, repetidos o vacíos y otras rutas. No confunde una lista sin tarjetas reconocibles con una cuenta vacía.
 
 Desde 1.0.2 no exige que toda la página tenga una sola área principal. Evalúa los contenedores `main` y `role="main"` mediante tarjetas reconocibles: Agregar a colección, un menú de la tarjeta y un enlace fuera del grupo de acciones. Ignora áreas sin esa estructura. Si varios contenedores anidados representan la misma lista, elige el interior; comprueba que no queden tarjetas reconocibles fuera de él en un antecesor. Dos listas independientes o tarjetas adicionales fuera del área elegida bloquean la operación antes de abrir menús. Un botón Agregar a colección aislado en otra sección no basta para identificar otra lista.
 
@@ -107,6 +107,18 @@ La pausa de 1 a 3600 segundos (4 predeterminado) comienza después de verificar 
 
 Cuando se agotan las tarjetas reconocidas pendientes, se desplaza el ancestro con desplazamiento vertical o el documento, aproximadamente una pantalla. Se esperan hasta 2.5 segundos por intento, ampliados mientras haya carga visible, con límite de 30 segundos de carga y tres intentos sin nuevas tarjetas. Al agotarse esos intentos se informa que no aparecieron más datos; sólo un mensaje explícito se describe como vista vacía. No se afirma haber consultado todo el servidor. La virtualización, los filtros, los cambios de enlaces o un indicador no reconocido pueden limitar el recorrido y requieren revisión real.
 
+### Colecciones desde 1.1.0
+
+La nueva funcionalidad conserva los modos existentes y aumenta la versión menor a **1.1.0**. La inspección real confirmó una vista con `main` anidados, el título Guardado en la navegación y controles de tarjeta `div[role="button"]` con etiqueta Más y `aria-haspopup="dialog"`. El menú real es `role="menu"`. Una tarjeta disponible muestra Compartir y Eliminar de la colección; una no disponible sólo ofrece Eliminar de la colección. Se abrieron y cerraron ambos menús sin ejecutar la acción. No se almacenó HTML ni contenido de esa cuenta en las fixtures.
+
+`cardAnchors` y `readEntry` seleccionan el adaptador de tarjeta según el contexto. En una colección, `readCollectionCard` exige un único Más reconocido, un solo control y una miniatura propia junto a un enlace identificable o un aviso de contenido no disponible reconocido. No depende de la etiqueta article, de clases generadas, de coordenadas ni del número de posición. El menú de administración Más opciones para la colección no pertenece a las etiquetas de tarjeta. Los avisos idénticos sin identidad se procesan con el protocolo anónimo de 1.0.7; no se convierten en títulos duplicados ni se identifican por el aviso genérico.
+
+`menuDelete` separa las listas de acciones exactas: Guardados usa sus acciones de quitar guardado; una colección usa sólo Eliminar de la colección o Remove from collection. No hay respaldo a Eliminar ni a Eliminar colección. Las comprobaciones de menú recién abierto, intercepción, pausa y verificación se conservan.
+
+La inspección devuelve `pageUrl` canónica y `collection`. El service worker compara ambos valores con la pestaña activa, vuelve a consultar la pestaña antes de Start y guarda `savedUrl` y `savedCollection` en memoria de sesión. La URL contiene sólo el origen, la ruta normalizada y el `list_id` necesario; no se guarda el referrer. El documento y el worker comprueban esa misma vista antes de continuar. Cambiar de colección o salir a Guardados bloquea la ejecución, incluso mediante navegación dentro del mismo documento; variaciones del referrer no cambian la autorización. Esto complementa, no reemplaza, la propiedad por pestaña, documento e ID de ejecución.
+
+Las fixtures usan identificadores y contenido sintéticos. Reproducen tarjetas disponibles y avisos repetidos sin enlaces, menús con acciones señuelo Eliminar y Eliminar colección, un menú de administración, fondo oculto por accesibilidad, reconstrucción del DOM, última tarjeta, scroll interno, límite, pausa, Stop y navegación a otra colección. Las pruebas de protocolo cubren una navegación durante la inspección inicial y mensajes posteriores desde otra vista. El panel indica la acción y que la colección se conserva.
+
 ### Registro de actividad
 
 El adaptador exige la ruta `/…/allactivity/` y un título visible exacto **Tus elementos guardados** o **Your saved items**. No usa selectores de clases generadas, coordenadas, APIs internas, credenciales o una lista de IDs de publicaciones.
@@ -134,6 +146,8 @@ La huella de progreso resume el texto visible del área principal antes de selec
 El estado en `chrome.storage.session` se lee y modifica sólo desde el service worker. Los mensajes se serializan para evitar que una actualización atrasada sobrescriba una detención. Cada acción comprueba la ejecución, la pestaña, el documento y la categoría antes de continuar. Hay un pequeño intervalo inevitable entre la última comprobación y el clic; Detener no puede recuperar una solicitud ya enviada.
 
 ## Validación con una cuenta real
+
+En una colección, comprueba que el panel indique Eliminar de la colección, prueba **1 elemento** y revisa su desaparición sin borrar la colección. Esta acción sólo modifica la pertenencia a la colección; no se presenta como una eliminación global de Guardados.
 
 En Guardados, empieza con un máximo de **1 elemento** y 4 segundos. Verifica el título, que se abra el menú de la tarjeta correcta, la opción Eliminar y su desaparición. Después prueba un límite pequeño mayor que las tarjetas inicialmente cargadas para comprobar el scroll y la llegada de nuevas tarjetas. No pruebes con datos reales como parte de CI.
 

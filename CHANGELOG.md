@@ -1,5 +1,13 @@
 # Cambios
 
+## 1.1.0 — 16 de noviembre de 2026
+
+- Añade limpieza uno por uno dentro de una colección abierta en `/saved/?list_id=…`, con el mismo límite, pausa configurable, cuenta regresiva, scroll automático y Detener.
+- Usa exclusivamente Eliminar de la colección en el menú de cada tarjeta; nunca elimina la colección ni selecciona Eliminar genérico en esa vista.
+- Reconoce la variante sin Agregar a colección ni Compartir y los avisos repetidos de contenido no disponible sin título o enlace propio. Verifica su desaparición mediante una reducción de uno y elementos identificables intactos.
+- Vincula cada ejecución a la vista inicial, además de pestaña y documento. Cambiar de colección o ir a todos los guardados la detiene; no depende de parámetros de seguimiento.
+- Actualiza el panel, aceptación, guías en español e inglés y documentación de desarrollo. Añade pruebas del menú, límites, pausa, scroll, contenido no disponible, detención y cambios de vista.
+
 ## 1.0.7 — 15 de noviembre de 2026
 
 - Añade tratamiento para la tarjeta vacía observada en el DOM real: sólo metadatos Reel, un enlace genérico sin texto y los controles Agregar a colección y Más. También admite esa estructura sin enlace.

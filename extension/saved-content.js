@@ -3,11 +3,14 @@
   "use strict";
   globalThis.runFBSaved = async function (run, { send, alive, pause }) {
     const dom = globalThis.FBSaved;
+    const collection = Boolean(run.savedCollection);
+    const action = collection ? "Eliminar de la colección" : "Eliminar";
     async function check() {
       alive();
-      dom.assertPage();
+      dom.assertPage(run.savedUrl);
       run = (await send("check", { id: run.id })).run;
       alive();
+      dom.assertPage(run.savedUrl);
     }
     async function waitFor(read, timeout, error) {
       const deadline = Date.now() + timeout;
@@ -60,7 +63,7 @@
       let next = await discover();
       if (!next) next = await loadMore();
       if (!next) {
-        reason = dom.deletionState("").empty ? "Facebook muestra una lista vacía." :
+        reason = dom.deletionState("").empty ? (collection ? "Facebook muestra la colección vacía. La colección se conserva." : "Facebook muestra una lista vacía.") :
           "Facebook no entregó nuevas tarjetas después de desplazar. Esto no confirma que toda la cuenta esté vacía.";
         break;
       }
@@ -92,7 +95,7 @@
       await check();
       card.more.click();
       const remove = await waitFor(() => dom.menuDelete(before, card.more), 10000,
-        'No apareció una única opción «Eliminar» en el menú de la tarjeta. No se hizo clic en otra opción.');
+        `No apareció una única opción «${action}» en el menú de la tarjeta. No se hizo clic en otra opción.`);
       await check();
       const snapshot = anonymous ? dom.captureAnonymous(card) : key;
       if ((!anonymous && !dom.cards().some((item) => item.key === key)) || !dom.clickable(remove)) {
@@ -128,6 +131,6 @@
     }
     await check();
     if (!reason) reason = "Se alcanzó el máximo de elementos configurado.";
-    await send("finish", { id: run.id, text: `${run.processed} elementos procesados. ${reason}` });
+    await send("finish", { id: run.id, text: `${run.processed} elementos ${collection ? "quitados de la colección" : "procesados"}. ${reason}` });
   };
 })();

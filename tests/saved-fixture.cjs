@@ -25,6 +25,13 @@ module.exports = function fixture(options = {}) {
     footer.setAttribute('data-visualcompletion','loading-state');footer.setAttribute('aria-label','Cargando...');
     footer.style.cssText='height:176px;position:static';main.append(footer);
   }
+  if (options.collection) {
+    const header = document.createElement('header');
+    header.innerHTML = '<h2>Demo collection</h2><button>Invitar</button><button aria-label="Más opciones para la colección">…</button>';
+    header.querySelectorAll('button').forEach(button => button.onclick = () => record('wrong-action'));
+    main.prepend(header);
+    document.getElementById('empty').textContent = 'No hay elementos en esta colección';
+  }
   if(options.singularHeading)document.querySelector('h1').textContent='Guardado';
   if(options.otherMain){
     const sidebar=document.createElement('aside');sidebar.setAttribute('role','main');
@@ -46,6 +53,15 @@ module.exports = function fixture(options = {}) {
   function render(){
     renderCount++;
     feed.innerHTML=ids.map(id=>{
+      if (options.collection) {
+        const unavailable = (options.unavailableIds || []).includes(id);
+        const thumbnail = '<img alt="imagen" width="144" height="144">';
+        const content = unavailable
+          ? thumbnail + '<div>Este producto no está disponible ahora.</div><div>Es posible que haya cambiado la configuración de privacidad o que haya caducado.</div>'
+          : '<a href="/watch/?ref=saved&v=' + id + '">' + thumbnail + '</a><a href="/watch/?ref=saved&v=' + id + '">Video de Demo ' + id + '</a><span>Reels • Demo</span>';
+        return '<div data-card style="padding:20px;margin:10px;background:white;width:650px;min-height:180px">' + content +
+          '<div><div role="button" tabindex="0" data-more="' + id + '" aria-label="Más" aria-haspopup="dialog" style="display:inline-block;padding:12px">…</div></div></div>';
+      }
       const blank = blankIds.has(id);
       const title='Demo '+id+', compartir y share';
       const open=options.realControls?'<div role="button" tabindex="0"':'<button';
@@ -92,8 +108,16 @@ module.exports = function fixture(options = {}) {
     record('open',id);
     const menu=document.createElement('div');menu.id='menu';menu.setAttribute('role','menu');
     button.setAttribute('aria-controls','menu');
-    menu.innerHTML='<div role="menuitem"><span>'+(options.missingDelete?'Eliminar colección':'Eliminar')+'</span></div><div role="menuitem">Agregar a colección</div>';
-    menu.querySelector('[role="menuitem"]').onclick=()=>{
+    if (options.collection) {
+      menu.innerHTML = '<div role="menuitem">Compartir</div><div role="menuitem">Eliminar</div><div role="menuitem">Eliminar colección</div>' +
+        (options.missingDelete ? '' : '<div role="menuitem" data-remove>Eliminar de la colección</div>');
+      menu.querySelectorAll('[role="menuitem"]').forEach(item => item.onclick = () => record('wrong-action'));
+    } else {
+      menu.innerHTML='<div role="menuitem" data-remove><span>'+(options.missingDelete?'Eliminar colección':'Eliminar')+'</span></div><div role="menuitem">Agregar a colección</div>';
+    }
+    const remove = menu.querySelector('[data-remove]');
+    if (remove) remove.onclick=()=>{
+      if (options.collection) record('remove-collection', id);
       record('delete',id);menu.remove();main.removeAttribute('aria-hidden');loading=true;busy.hidden=false;
       if(options.security){const alert=document.createElement('p');alert.setAttribute('role','alert');alert.textContent='Confirma tu identidad';document.body.append(alert);return;}
       setTimeout(()=>{

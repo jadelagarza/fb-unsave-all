@@ -19,6 +19,7 @@
   const shareNames = new Set(["compartir", "share"]);
   const actionNames = new Set([...collectionNames, ...moreNames, ...shareNames]);
   const deleteNames = new Set(["eliminar", "delete", "quitar de guardados", "eliminar de guardados", "unsave", "remove from saved"]);
+  const collectionDeleteNames = new Set(["eliminar de la coleccion", "remove from collection"]);
   const headings = new Set(["guardado", "guardados", "elementos guardados", "tus elementos guardados", "saved", "saved items", "your saved items"]);
   const menusSelector = '[role="menu"],[role="listbox"]';
   const alertsSelector = '[role="alert"],[role="dialog"],[role="alertdialog"]';
@@ -50,6 +51,25 @@
     return actionNames.has(prefix) ? prefix : label;
   }
   const collectionControls = (scope) => buttons(scope).filter((el) => collectionNames.has(actionName(el)));
+  function pageContext(href = location.href) {
+    const url = new URL(href);
+    const ids = url.searchParams.getAll("list_id");
+    const unknownCollection = [...url.searchParams.keys()].some((key) =>
+      /collection|list_id/i.test(key) && key !== "list_id");
+    if (url.origin !== "https://www.facebook.com" || !/^\/saved\/?$/.test(url.pathname) ||
+        unknownCollection || ids.length > 1 || (ids.length === 1 && !/^\d{1,40}$/.test(ids[0]))) {
+      throw new Error("Abre Guardados o una colección válida en https://www.facebook.com/saved/?list_id=…");
+    }
+    return {
+      url: "https://www.facebook.com/saved/" + (ids.length ? `?list_id=${ids[0]}` : ""),
+      collection: ids.length === 1
+    };
+  }
+  const collectionMenus = (scope) => buttons(scope).filter((el) => moreNames.has(actionName(el)));
+  const cardAnchors = (scope) => pageContext().collection ? collectionMenus(scope) : collectionControls(scope);
+  const readEntry = (anchor, scope) => pageContext().collection
+    ? readCollectionCard(anchor, scope)
+    : readCard(anchor, scope);
   function narrowestScope(candidates) {
     const inner = candidates.filter(({ scope }) => !candidates.some((other) => other.scope !== scope && scope.contains(other.scope)));
     if (inner.length !== 1) {
@@ -61,7 +81,7 @@
     for (const candidate of candidates) {
       for (const add of candidate.adds) {
         if (selected.contains(add)) continue;
-        try { readCard(add, candidate.scope); }
+        try { readEntry(add, candidate.scope); }
         catch { continue; } // An unrelated collection control is not a saved card.
         throw new Error("Hay tarjetas de Guardados fuera del área identificada. La lista es ambigua; no se hará clic.");
       }
@@ -74,9 +94,9 @@
     // Menus can hide the background only for accessibility. Reuse that exact scope
     // only after it was recognized in this document, not an arbitrary hidden main.
     if (previous && !mains.includes(previous) && visuallyVisible(previous) && all(document, menusSelector).length) mains.push(previous);
-    const candidates = mains.map((scope) => ({ scope, adds: collectionControls(scope) })).filter((candidate) =>
+    const candidates = mains.map((scope) => ({ scope, adds: cardAnchors(scope) })).filter((candidate) =>
       candidate.adds.some((add) => {
-        try { readCard(add, candidate.scope); return true; }
+        try { readEntry(add, candidate.scope); return true; }
         catch { return false; }
       }));
     if (candidates.length) return narrowestScope(candidates);
@@ -88,17 +108,16 @@
     if (empty.length) return narrowestScope(empty.map((scope) => ({ scope, adds: [] })));
     throw new Error("No se pudo identificar el área que contiene las tarjetas de Guardados. Espera a que carguen los elementos y vuelve a comprobar.");
   }
-  function assertPage() {
-    const url = new URL(location.href);
-    if (url.origin !== "https://www.facebook.com" || !/^\/saved\/?$/.test(url.pathname) ||
-        [...url.searchParams.keys()].some((key) => /collection|list_id/i.test(key))) {
-      throw new Error("Abre https://www.facebook.com/saved/ en la vista de todos los guardados, fuera de una colección.");
+  function assertPage(expectedUrl) {
+    const context = pageContext();
+    if (expectedUrl && context.url !== expectedUrl) {
+      throw new Error("Cambió la colección o la vista de Guardados. Se detuvo la ejecución.");
     }
     if (!cardElements(document, 'h1,h2,h3,[role="heading"]').some((el) => headings.has(name(el)))) {
       throw new Error("No se reconoce el título de Guardados. No se hará clic.");
     }
-    const scope = listScope(url.href);
-    verified = { url: url.href, scope };
+    const scope = listScope(context.url);
+    verified = { url: context.url, scope };
     if (all(document, alertsSelector).some((el) => errorPattern.test(normalize(el.innerText)))) {
       throw new Error("Facebook muestra un error o una verificación. Revisa la página manualmente.");
     }
@@ -192,9 +211,31 @@
     }
     throw new Error("No se pudo reconocer una tarjeta individual de Guardados.");
   }
+  function unavailableCard(card, group) {
+    const fullText = normalize(card.innerText || "");
+    const actions = normalize(group.innerText || "");
+    const text = actions && fullText.endsWith(actions)
+      ? fullText.slice(0, -actions.length).trim()
+      : fullText;
+    return /^(?:este (?:producto|contenido|elemento|video|reel|publicacion) no esta disponible ahora\.?(?: es posible que haya cambiado la configuracion de privacidad o que haya caducado\.)?|this (?:product|content|item|video|reel|post) isn.t available (?:right )?now\.?(?: (?:its privacy settings may have changed or it may have expired|it may have expired or its privacy settings may have changed)\.)?)$/.test(text);
+  }
+  function readCollectionCard(more, scope) {
+    // The collection toolbar has its own, different More label. A card must have
+    // exactly one known More control and its own thumbnail plus content or notice.
+    const group = more.parentElement;
+    for (let card = group; card && card !== scope; card = card.parentElement) {
+      if (collectionMenus(card).length !== 1 || buttons(card).length !== 1) break;
+      if (!cardElements(card, 'img,video,[role="img"]').length) continue;
+      const key = identity(card, group, more);
+      if (key !== null || unavailableCard(card, group)) {
+        return { element: card, more, key, anonymous: key === null };
+      }
+    }
+    throw new Error("No se pudo reconocer una tarjeta individual de la colección. No se hará clic.");
+  }
   function cards() {
     const scope = assertPage();
-    const result = collectionControls(scope).map((add) => readCard(add, scope));
+    const result = cardAnchors(scope).map((anchor) => readEntry(anchor, scope));
     const identified = result.filter((card) => !card.anonymous);
     if (new Set(identified.map((card) => card.key)).size !== identified.length) {
       throw new Error("Hay tarjetas con identidades ambiguas. Revisa la lista antes de eliminar.");
@@ -206,7 +247,7 @@
     return all(scope, '[role="progressbar"],[aria-busy="true"],[data-visualcompletion="loading-state"]');
   }
   function footerLoaders(scope) {
-    const adds = collectionControls(scope);
+    const adds = cardAnchors(scope);
     return loadingIndicators(scope).filter((el) => {
       if (!el.matches('[role="status"][data-visualcompletion="loading-state"]') ||
           el.getAttribute("aria-busy") === "true" || !/^(?:cargando|loading)(?:\.{3}|…)?$/.test(name(el)) ||
@@ -234,7 +275,7 @@
     const items = cards();
     const busy = loading();
     const overlays = openMenus().length + all(document, '[role="dialog"],[role="alertdialog"]').length;
-    return { mode: "saved", ready: items.length > 0 && !busy && !overlays, loaded: items.length,
+    return { mode: "saved", pageUrl: pageContext().url, collection: pageContext().collection, ready: items.length > 0 && !busy && !overlays, loaded: items.length,
       empty: items.length === 0, loading: busy, dialogs: overlays };
   }
   function clickable(element) {
@@ -252,15 +293,18 @@
     const candidates = openMenus().filter((menu) => !before.includes(menu) || controlled.includes(menu.id));
     if (candidates.length === 0) return null;
     const menu = unique(candidates, "menú recién abierto de la tarjeta");
+    const allowed = pageContext().collection ? collectionDeleteNames : deleteNames;
     const items = all(menu, '[role="menuitem"],[role="option"],button,[role="button"]')
-      .filter((el) => deleteNames.has(name(el)) && enabled(el));
+      .filter((el) => allowed.has(name(el)) && enabled(el));
     // A nested menuitem/button can represent one action. Never choose among two actions.
     const targets = items.filter((el) => !items.some((other) => other !== el && other.contains(el)));
-    return targets.length ? unique(targets, 'opción «Eliminar» del menú') : null;
+    return targets.length ? unique(targets, pageContext().collection
+      ? 'opción «Eliminar de la colección» del menú' : 'opción «Eliminar» del menú') : null;
   }
   function hasEmptyMessage(scope) {
     return all(scope, 'p,span,div,[role="status"]').some((el) => {
       const text = normalize(el.innerText || "");
+      if (pageContext().collection && /^(?:no hay (?:elementos|nada) en esta coleccion[.!]?|esta coleccion (?:no tiene elementos|esta vacia)[.!]?|this collection is empty[.!]?|no items in this collection[.!]?)$/.test(text)) return true;
       return text.length < 130 && /^(?:(?:todavia )?no (?:hay|tienes) (?:nada|(?:mas |ningun )?elementos?)(?: guardados?)?(?: para mostrar)?[.!]?|you (?:have no|haven.t saved any) (?:saved )?items[.!]?|nothing to show[.!]?|no saved items[.!]?)$/.test(text);
     });
   }
@@ -312,6 +356,6 @@
     if (!scroll) throw new Error("No se pudo reconocer el área desplazable de Guardados.");
     scroll.scrollBy({ top: Math.max(400, scroll.clientHeight * 0.85), behavior: "instant" });
   }
-  globalThis.FBSaved = Object.freeze({ assertPage, cards, inspect, loading, moreLoading, openMenus, clickable,
+  globalThis.FBSaved = Object.freeze({ pageContext, assertPage, cards, inspect, loading, moreLoading, openMenus, clickable,
     menuDelete, captureAnonymous, anonymousTargetReady, deletionState, scrollMore });
 })();

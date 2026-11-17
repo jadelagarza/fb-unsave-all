@@ -10,7 +10,7 @@
 <body>
   <header><small>LIMPIEZA DE GUARDADOS</small><h1>FB Unsave All <span id="version"></span></h1></header>
   <p>Quita guardados con los controles visibles de Facebook.</p>
-  <label>Modo de limpieza<select id="mode"><option value="saved" selected>Guardados: uno por uno</option><option value="activity">Registro de actividad: lotes</option></select></label>
+  <label>Modo de limpieza<select id="mode"><option value="saved" selected>Guardados y colecciones: uno por uno</option><option value="activity">Registro de actividad: lotes</option></select></label>
   <button id="open" class="secondary">1. Abrir mis elementos guardados</button>
   <button id="inspect" class="secondary">2. Comprobar esta página</button>
   <p id="inspection" role="status">Abre Facebook e inicia sesión por tu cuenta.</p>
@@ -20,13 +20,13 @@
       <label>Máximo de elementos<input id="items" type="number" min="0" max="100000" value="0" required></label>
       <label>Espera entre elementos (s)<input id="item-delay" type="number" min="1" max="3600" value="4" required></label>
     </div>
-    <p id="saved-hint" class="hint">0 = continuar hasta que no aparezcan más tarjetas al desplazar. Se hace scroll automáticamente cuando hace falta. Para probar, usa un máximo de 1 elemento.</p>
+    <p id="saved-hint" class="hint">0 = continuar hasta que no aparezcan más tarjetas al desplazar. Se hace scroll automáticamente cuando hace falta. Dentro de una colección se usa solo «Eliminar de la colección», sin borrar la colección. Para probar, usa un máximo de 1 elemento.</p>
     <div class="fields" id="activity-fields" hidden>
       <label>Máximo de lotes<input id="batches" type="number" min="1" max="500" value="1" required></label>
       <label>Pausa entre lotes (s)<input id="delay" type="number" min="3" max="3600" value="10" required></label>
     </div>
     <p id="activity-hint" class="hint" hidden>Empieza con 1 lote y revisa el resultado. El Registro de actividad puede omitir guardados antiguos; usa el otro modo si ocurre.</p>
-    <label class="ack"><input id="ack" type="checkbox" required><span>Entiendo que se quitarán los guardados seleccionados y que una eliminación confirmada no se puede cancelar.</span></label>
+    <label class="ack"><input id="ack" type="checkbox" required><span id="ack-text">Entiendo que se quitarán los guardados seleccionados y que una eliminación confirmada no se puede cancelar.</span></label>
     <button id="start" type="submit">3. Iniciar limpieza</button>
   </form>
   <button id="stop" class="danger" disabled>Detener ejecución</button>

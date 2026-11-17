@@ -118,3 +118,14 @@ test('an old or malformed content-script response gives reload instructions', as
   assert.equal(malformed.ok, false);
   assert.match(malformed.error, /respuesta incompatible.*Recarga/);
 });
+
+
+test('collection inspection names the item action and states that the collection is preserved', async () => {
+  const h = await popupHarness(async () => ({ ok: true,
+    inspection: { mode: 'saved', collection: true, ready: true, loaded: 3 } }));
+  await h.click('inspect');
+  assert.match(h.node('inspection').textContent, /Eliminar de la colección/);
+  assert.match(h.node('inspection').textContent, /colección se conserva/);
+  assert.match(h.node('ack-text').textContent, /uno por uno de la colección/);
+  assert.equal(h.messages.some(message => message.type === 'start'), false);
+});

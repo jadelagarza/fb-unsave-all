@@ -4,13 +4,22 @@ let restored = false;
 let inspecting = false;
 let refreshing = false;
 let currentRun = null;
+let inspectedCollection = false;
+function renderScope(collection) {
+  $("ack-text").textContent = collection
+    ? "Entiendo que se quitarán los elementos uno por uno de la colección abierta. La colección se conserva; esto no garantiza quitarlos de todos mis guardados."
+    : "Entiendo que se quitarán los guardados seleccionados y que una eliminación confirmada no se puede cancelar.";
+}
 function renderMode() {
   const saved = $("mode").value === "saved";
   $("saved-fields").hidden = $("saved-hint").hidden = !saved;
   $("activity-fields").hidden = $("activity-hint").hidden = saved;
   for (const id of ["items", "item-delay"]) $(id).disabled = !saved;
   for (const id of ["batches", "delay"]) $(id).disabled = saved;
-  $("inspection").textContent = saved ? "Abre Guardados. Puedes cargar tarjetas deslizando; la extensión también desplazará cuando haga falta." :
+  inspectedCollection = false;
+  renderScope(false);
+  $("open").textContent = saved ? "1. Abrir todos mis guardados" : "1. Abrir mis elementos guardados";
+  $("inspection").textContent = saved ? "Abre Guardados o una colección. Si ya estás dentro de la colección que quieres limpiar, pulsa Comprobar directamente. La extensión desplazará cuando haga falta." :
     "Abre Tus elementos guardados dentro del Registro de actividad.";
 }
 async function request(type, fields = {}) {
@@ -78,9 +87,10 @@ async function refresh() {
   $("completed").textContent = String(run?.batches || 0);
   $("processed").textContent = String(run?.processed || 0);
   renderControls();
+  renderScope(run?.status === "running" ? Boolean(run.savedCollection) : inspectedCollection);
   const saved = (run?.mode || $("mode").value) === "saved";
   $("batch-metric").hidden = saved;
-  $("counter-hint").textContent = saved ? "*Se contabilizan cuando se comprueba que la tarjeta desapareció. Comprueba también el resultado en Guardados." :
+  $("counter-hint").textContent = saved ? (run?.savedCollection ? "*Se contabilizan al comprobar que la tarjeta desapareció de esta colección. La colección se conserva." : "*Se contabilizan cuando se comprueba que la tarjeta desapareció. Comprueba también el resultado en Guardados.") :
     "*Se contabilizan después de verificar la página recargada. Comprueba también el resultado en Guardados.";
   } finally { refreshing = false; }
 }
@@ -95,8 +105,10 @@ $("inspect").addEventListener("click", async () => {
   renderControls();
   try {
     const { inspection: result } = await request("inspect", { mode: $("mode").value });
+    inspectedCollection = Boolean(result.collection);
+    renderScope(inspectedCollection);
     $("inspection").dataset.state = result.ready ? "ready" : "review";
-    $("inspection").textContent = result.mode === "saved" ? (result.ready ? `${result.loaded} tarjetas reconocidas. Listo para eliminar una por una y desplazar cuando sea necesario.` :
+    $("inspection").textContent = result.mode === "saved" ? (result.ready ? `${result.loaded} tarjetas reconocidas. ${result.collection ? "Se usará solo «Eliminar de la colección», una por una. La colección se conserva." : "Listo para eliminar una por una y desplazar cuando sea necesario."}` :
       `Se reconocieron ${result.loaded} tarjetas. Cargando: ${result.loading ? "sí" : "no"}; menús o diálogos: ${result.dialogs}. Carga elementos y cierra los menús antes de iniciar.`) : result.empty ? "Facebook muestra una lista vacía." :
       result.ready ? 'Página reconocida. Casilla «Todo» disponible y sin selección previa.' :
         `La página no está lista. Cargando: ${result.loading ? "sí" : "no"}; diálogos: ${result.dialogs}.`;

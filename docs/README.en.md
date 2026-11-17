@@ -2,7 +2,7 @@
 
 [Español](../README.md) · [Development and verification](DEVELOPMENT.md) · [Changelog](../CHANGELOG.md)
 
-**Version 1.0.7** supports one-at-a-time removal on [Facebook Saved](https://www.facebook.com/saved/), with automatic scrolling, a configurable delay and a countdown. It also handles blank cards without a title or specific link by checking that their count decreases by one while identified peers remain unchanged. Activity Log batches remain available.
+**Version 1.1.0** supports one-at-a-time cleanup in [Facebook Saved](https://www.facebook.com/saved/) and in an open collection (`/saved/?list_id=…`), with automatic scrolling, a configurable delay and a countdown. Collection cleanup uses only **Remove from collection**, including unavailable items, and preserves the collection. Blank cards and Activity Log batches remain supported.
 
 This removes references from your saved list, not the original posts. The extension cannot restore removed saves. Delays do not guarantee protection from Facebook restrictions. Automated tests use simulated pages. In 1.0.3, real controls and their menu were inspected without removing anything; this does not verify the full real deletion cycle. Test with **one item** on your account before running a larger cleanup.
 
@@ -20,13 +20,13 @@ This removes references from your saved list, not the original posts. The extens
 5. Open **FB Unsave All** from Chrome's extensions menu.
 6. Reload an already-open Facebook tab once to activate the content script.
 
-To update, stop any active run, download the current files or run `git pull`, then click **Reload** on the extension in `chrome://extensions`. Verify version **1.0.7**, also shown in the popup header, and reload Facebook once. Keep the extracted directory in place. No Node.js or npm packages are required for end users. This project has no official Chrome Web Store listing.
+To update, stop any active run, download the current files or run `git pull`, then click **Reload** on the extension in `chrome://extensions`. Verify version **1.1.0**, also shown in the popup header, and reload Facebook once. Keep the extracted directory in place. No Node.js or npm packages are required for end users. This project has no official Chrome Web Store listing.
 
 ## Saved: one item at a time
 
 1. Sign in to Facebook yourself.
-2. Choose **Guardados: uno por uno** (the new default) in the popup.
-3. Click **1. Abrir mis elementos guardados**, or open [facebook.com/saved/](https://www.facebook.com/saved/). Use the general saved-items view outside any collection. Start at the top to traverse from the beginning.
+2. Choose **Guardados y colecciones: uno por uno** (the new default) in the popup.
+3. Click **1. Abrir todos mis guardados**, or open [facebook.com/saved/](https://www.facebook.com/saved/). Use the general view to unsave items. To clean a collection, follow the section below. Start at the top to traverse from the beginning.
 4. Wait for cards to appear and close menus or dialogs. You may have already scrolled to load cards; the extension can also scroll as needed.
 5. Click **2. Comprobar esta página**. **Comprobando…** appears immediately, followed by the result or exact error below the button. The reported card count is the currently recognized set, not your account's total saved items. Checking does not remove anything.
 6. For the first test, set **Máximo de elementos** to **1** and **Espera entre elementos (s)** to **4**.
@@ -43,6 +43,20 @@ For each card, the extension scrolls its controls into view if needed, opens its
 It verifies that the card disappeared, with no loading or dialog pending, for one stable second before incrementing the counter. It then waits the configured delay. The actual interval between clicks includes Facebook's response and verification time. If verification fails, it stops without retrying or reloading. Unexpected confirmation dialogs require manual review.
 
 During the pause, the popup counts down **4 s → 3 s → 2 s → 1 s** from the actual pause deadline. Reopening the popup shows the remaining time rather than restarting the countdown. This also applies between Activity Log batches and does not change the configured delay.
+
+### Clean items from a collection
+
+1. Open **Saved → My collections → your collection**, such as General. The URL must use `/saved/?list_id=…`.
+2. With that tab active, select **Guardados y colecciones: uno por uno** in the extension.
+3. Click **Comprobar esta página** directly. **Abrir todos mis guardados** would navigate out of the collection.
+4. The result names **Eliminar de la colección / Remove from collection**. Set a maximum of **1** for the first test, choose the delay, acknowledge and start.
+5. Verify the result, then increase the maximum or use **0** to continue while more cards are found.
+
+Only the exact item-menu action **Eliminar de la colección** or **Remove from collection** is selected. Delete collection, Invite, Share and generic Delete are never selected in this view. **The collection itself is preserved.** Removing membership does not guarantee unsaving the item from the general Saved view or other collections.
+
+Cards displaying **Este producto no está disponible ahora** without a title or link are supported. Repeated unavailable notices are anonymous cards: exactly one must disappear while all identified peers stay unchanged for 1.5 seconds. The same limit, delay, countdown, automatic scrolling and Stop apply.
+
+A run is bound to its initial collection. Navigating to another collection or the all-items view stops it. Start a new run for another collection. Missing actions or unverified results stop the run without selecting an alternative action or retrying.
 
 ### Blank or untitled cards
 
@@ -64,7 +78,7 @@ When no recognized pending cards remain, it scrolls to load more. Loading is all
 
 Limits: `1`–`500` batches; `3`–`3600` seconds between batches. This mode selects All, reads the counter only inside the selection toolbar, clicks Delete and confirms in the dialog containing Cancel and Delete. It waits for loading/blocking layers and selection to clear, with 1.5 seconds of stability, then requests a normal tab reload. Stale rows can trigger a verification reload when the interface is ready. Counters advance only after the fresh page confirms progress. An unchanged list blocks further deletion; the final batch is reloaded and verified too.
 
-If Activity Log omits older saves, use **Guardados: uno por uno**. The extension cannot force Facebook to provide missing data.
+If Activity Log omits older saves, use **Guardados y colecciones: uno por uno**. The extension cannot force Facebook to provide missing data.
 
 ## Stop, recover and troubleshoot
 
@@ -89,7 +103,7 @@ When reporting an issue, include the extension and Chrome versions, language, mo
 
 All extension code ships in `extension/`. There is no remote code, telemetry, custom server or private Facebook API access. Clicking the page's controls triggers its normal requests.
 
-`storage` keeps temporary session state and counters. Access to `https://www.facebook.com/*` allows DOM inspection and modification, and reinjection after Activity Log reloads. It requests no cookie, history or password permissions. Card identities are represented by local hashes; post text and links are not stored in extension state.
+`storage` keeps temporary session state and counters, including the canonical authorized view URL with its `list_id` when applicable, without tracking parameters, to prevent switching collections during a run. Access to `https://www.facebook.com/*` allows DOM inspection and modification, and reinjection after Activity Log reloads. It requests no cookie, history or password permissions. Card identities are represented by local hashes; post text and links are not stored in extension state.
 
 There are no techniques to conceal automation or evade restrictions. Read [Facebook's terms](https://www.facebook.com/legal/terms). This project is not affiliated with Meta.
 

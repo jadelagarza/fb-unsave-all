@@ -35,6 +35,7 @@ function backgroundHarness(clock = new Clock()) {
   let listener;
   let removed;
   let run = null;
+  let tabUrl = "https://www.facebook.com/me/allactivity/?category_key=SAVEDFORLATER";
   let pageHandler = async () => ({ ok: true, inspection: { ready: true, empty: false } });
   const reloads = [];
   const navigations = [];
@@ -45,7 +46,7 @@ function backgroundHarness(clock = new Clock()) {
       storage: { session: { get: async () => ({ run }), set: async (value) => { run = value.run; } } },
       runtime: { id: 'fixture-extension', getURL: (suffix) => `chrome-extension://fixture/${suffix}`, onMessage: { addListener: (fn) => { listener = fn; } } },
       tabs: {
-        query: async () => [{ id: 7, url: 'https://www.facebook.com/me/allactivity/?category_key=SAVEDFORLATER' }],
+        query: async () => [{ id: 7, url: tabUrl }],
         sendMessage: async (_tabId, message) => pageHandler(message),
         update: async (id, options) => navigations.push({ id, ...options }),
         create: async (options) => navigations.push(options),
@@ -59,10 +60,10 @@ function backgroundHarness(clock = new Clock()) {
     listener({ app: 'fb-unsave-all', type, ...fields }, from, resolve);
   });
   return { request, reloads, navigations, clock,
-    get run() { return run; }, setPageHandler(fn) { pageHandler = fn; },
+    get run() { return run; }, setTabUrl(url) { tabUrl = url; }, setPageHandler(fn) { pageHandler = fn; },
     removeTab: (id) => removed(id),
-    pageSender: (documentId = 'document-1', tabId = 7) => ({ tab: { id: tabId, url: 'https://www.facebook.com/me/allactivity/' }, documentId, frameId: 0,
-      url: 'https://www.facebook.com/me/allactivity/' })
+    pageSender: (documentId = 'document-1', tabId = 7) => ({ tab: { id: tabId, url: tabUrl }, documentId, frameId: 0,
+      url: tabUrl })
   };
 }
 

@@ -50,6 +50,90 @@ async function setup(t, fixtureOptions = {}, url = 'https://www.facebook.com/sav
 }
 
 describe('Saved page extension fixtures', { concurrency: 3 }, () => {
+  const collectionUrl = 'https://www.facebook.com/saved/?list_id=12345&referrer=SAVE_DASHBOARD_NAVIGATION_PANEL';
+
+  test('collection cleanup removes available and repeated unavailable cards only through Remove from collection', { timeout: 25000 }, async (t) => {
+    const h = await setup(t, { collection: true, initial: 4, unavailableIds: [2, 3], nestedMain: true, singularHeading: true, otherMain: true, hiddenMain: true, footerLoading: true }, collectionUrl);
+    const result = await h.request('inspect');
+    assert.equal(result.ok, true, result.error);
+    assert.equal(result.inspection.collection, true);
+    assert.equal(result.inspection.pageUrl, 'https://www.facebook.com/saved/?list_id=12345');
+    assert.equal(result.inspection.loaded, 4);
+    await h.controller.evaluate(() => document.getElementById('inspect').click());
+    await h.controller.waitForFunction(() => document.getElementById('inspection').dataset.state === 'ready');
+    assert.match(await h.controller.locator('#inspection').innerText(), /Eliminar de la colección/);
+    assert.equal((await h.start({ maxItems: 4 })).ok, true);
+    const run = await h.untilStatus('finished', 20000);
+    assert.equal(run.processed, 4);
+    assert.equal(run.savedCollection, true);
+    assert.match(run.message, /quitados de la colección/);
+    const events = await h.events();
+    assert.deepEqual(events.filter(e => e.type === 'remove-collection').map(e => e.id), [1, 2, 3, 4]);
+    assert.equal(events.filter(e => e.type === 'wrong-action').length, 0);
+    assert.equal(events.filter(e => e.type === 'page-load').length, 1);
+    const removed = events.filter(e => e.type === 'removed');
+    const opened = events.filter(e => e.type === 'open');
+    for (let i = 1; i < opened.length; i++) assert.ok(opened[i].at - removed[i - 1].at >= 1900);
+    assert.equal(await h.page.getByRole('button', { name: 'Más opciones para la colección', exact: true }).count(), 1);
+  });
+
+  test('collection cleanup scrolls its internal feed and honors the configured maximum', { timeout: 40000 }, async (t) => {
+    const h = await setup(t, { collection: true, unavailableIds: [4], nestedScroll: true, moreOnScroll: true, footerLoading: true }, collectionUrl);
+    assert.equal((await h.start({ maxItems: 4 })).ok, true);
+    assert.equal((await h.untilStatus('finished', 35000)).processed, 4);
+    const events = await h.events();
+    assert.ok(events.some(e => e.type === 'loaded'));
+    assert.deepEqual(events.filter(e => e.type === 'remove-collection').map(e => e.id), [1, 2, 3, 4]);
+    assert.equal(events.filter(e => e.type === 'wrong-action').length, 0);
+  });
+
+  test('a final unavailable collection item is verified using the empty collection message', { timeout: 12000 }, async (t) => {
+    const h = await setup(t, { collection: true, initial: 1, unavailableIds: [1], nestedMain: true }, collectionUrl);
+    assert.equal((await h.start({ maxItems: 1 })).ok, true);
+    assert.equal((await h.untilStatus('finished', 9000)).processed, 1);
+    assert.equal(await h.page.getByRole('button', { name: 'Más opciones para la colección', exact: true }).count(), 1);
+  });
+
+  test('collection mode never falls back to Delete or Delete collection when its item action is absent', { timeout: 16000 }, async (t) => {
+    const h = await setup(t, { collection: true, missingDelete: true }, collectionUrl);
+    assert.equal((await h.start()).ok, true);
+    const run = await h.untilStatus('blocked', 13000);
+    assert.equal(run.processed, 0);
+    assert.match(run.message, /Eliminar de la colección/);
+    assert.equal((await h.events()).filter(e => ['delete', 'remove-collection', 'wrong-action'].includes(e.type)).length, 0);
+  });
+
+  test('changing collections in the same document stops before another item is opened', { timeout: 12000 }, async (t) => {
+    const h = await setup(t, { collection: true }, collectionUrl);
+    assert.equal((await h.start({ delaySeconds: 4 })).ok, true);
+    await h.page.waitForFunction(() => window.events.some(e => e.type === 'removed'));
+    await h.page.evaluate(() => history.pushState({}, '', '/saved/?list_id=67890'));
+    const run = await h.untilStatus('blocked', 8000);
+    assert.match(run.message, /colección|vista/);
+    assert.equal((await h.events()).filter(e => e.type === 'remove-collection').length, 1);
+  });
+
+  test('Stop during a collection delay prevents another removal', { timeout: 12000 }, async (t) => {
+    const h = await setup(t, { collection: true }, collectionUrl);
+    assert.equal((await h.start({ delaySeconds: 4 })).ok, true);
+    await h.page.waitForFunction(() => window.events.some(e => e.type === 'removed'));
+    await h.request('stop');
+    await h.page.waitForTimeout(500);
+    assert.equal((await h.request('status')).run.status, 'stopped');
+    assert.equal((await h.events()).filter(e => e.type === 'remove-collection').length, 1);
+  });
+
+  test('collection URLs reject duplicate, empty or unsupported collection parameters before any action', { timeout: 10000 }, async (t) => {
+    const h = await setup(t, { collection: true }, collectionUrl);
+    for (const query of ['list_id=1&list_id=2', 'list_id=', 'list_id=abc', 'collection_id=123']) {
+      await h.page.evaluate(query => history.replaceState({}, '', '/saved/?' + query), query);
+      const result = await h.start();
+      assert.equal(result.ok, false);
+      assert.match(result.error, /colección/);
+    }
+    assert.equal((await h.events()).filter(e => ['open', 'delete', 'wrong-action'].includes(e.type)).length, 0);
+  });
+
   test('multiple blank saved cards are removed once each between identified cards after full DOM rerenders', { timeout: 25000 }, async (t) => {
     const h = await setup(t, {
       initial: 4,

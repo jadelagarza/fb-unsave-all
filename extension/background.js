@@ -15,6 +15,26 @@ function extensionSender(sender) {
 function validTabUrl(url) {
   try { return new URL(url).origin === "https://www.facebook.com"; } catch { return false; }
 }
+function savedPageUrl(href) {
+  const url = new URL(href);
+  const ids = url.searchParams.getAll("list_id");
+  const unknownCollection = [...url.searchParams.keys()].some((key) =>
+    /collection|list_id/i.test(key) && key !== "list_id");
+  if (url.origin !== "https://www.facebook.com" || !/^\/saved\/?$/.test(url.pathname) ||
+      unknownCollection || ids.length > 1 || (ids.length === 1 && !/^\d{1,40}$/.test(ids[0]))) {
+    throw new Error("Abre Guardados o una colección válida antes de iniciar.");
+  }
+  return URLS.saved + (ids.length ? `?list_id=${ids[0]}` : "");
+}
+async function sameSavedPage(run, sender) {
+  if (run.mode !== "saved") return;
+  let current;
+  try { current = savedPageUrl(sender.url || sender.tab?.url); } catch { current = null; }
+  if (current !== run.savedUrl) {
+    await write({ ...run, status: "blocked", message: "Cambió la colección o la vista de Guardados. Se detuvo la ejecución." });
+    throw new Error("La página ya no corresponde a la colección o vista autorizada.");
+  }
+}
 async function inspectTab(tabId, mode) {
   let timer;
   let timedOut = false;
@@ -37,6 +57,7 @@ async function requireOwner(sender, id) {
   const run = await read();
   if (!run || run.status !== "running" || run.id !== id || run.tabId !== sender.tab?.id ||
       run.documentId !== sender.documentId || sender.frameId !== 0) throw new Error("La ejecución fue detenida o esta página no tiene autorización.");
+  await sameSavedPage(run, sender);
   return run;
 }
 async function handle(message, sender) {
@@ -63,6 +84,15 @@ async function handle(message, sender) {
     if (!result?.ok) throw new Error(result?.error || "No se pudo comprobar la página.");
     if (!result.inspection || typeof result.inspection.ready !== "boolean") throw new Error("La página devolvió una respuesta incompatible. Recarga la extensión y después Facebook.");
     if (mode === "saved" && result.inspection.mode !== "saved") throw new Error("Facebook conserva un script anterior. Recarga la extensión en chrome://extensions y después Facebook para activar el modo Guardados.");
+    let savedUrl = null;
+    let savedCollection = false;
+    if (mode === "saved") {
+      savedUrl = savedPageUrl(tab.url);
+      savedCollection = new URL(savedUrl).searchParams.has("list_id");
+      if (result.inspection.pageUrl !== savedUrl || result.inspection.collection !== savedCollection) {
+        throw new Error("La vista cambió o Facebook conserva un script anterior. Recarga la extensión y Facebook y vuelve a comprobar.");
+      }
+    }
     if (message.type === "inspect") return { inspection: result.inspection };
     if ((await read())?.status === "running") throw new Error("Ya hay una ejecución activa; deténla primero.");
     if (message.acknowledged !== true) throw new Error("Debes confirmar que quieres quitar los guardados.");
@@ -74,9 +104,15 @@ async function handle(message, sender) {
     const minimum = mode === "saved" ? 1 : 3;
     if (!Number.isInteger(delaySeconds) || delaySeconds < minimum || delaySeconds > 3600) throw new Error(`La pausa debe estar entre ${minimum} y 3600 segundos.`);
     if (!result.inspection.ready || result.inspection.empty) throw new Error("La lista no está lista o ya está vacía.");
+    if (mode === "saved") {
+      const [latestTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (latestTab?.id !== tab.id || savedPageUrl(latestTab.url) !== savedUrl) {
+        throw new Error("La pestaña o la colección cambió mientras se comprobaba. Vuelve a comprobarla.");
+      }
+    }
     const run = await write({
       id: crypto.randomUUID(), tabId: tab.id, documentId: null, status: "running", phase: "starting",
-      mode, maxBatches, maxItems, planned: 0, pendingKey: null, pendingKind: null,
+      mode, savedUrl, savedCollection, maxBatches, maxItems, planned: 0, pendingKey: null, pendingKind: null,
       anonymousBefore: 0, lastCompletedKey: null,
       delayMs: delaySeconds * 1000, batches: 0, processed: 0, pendingSelected: 0,
       lastFingerprint: null, awaitingVerification: false, notBefore: 0,
@@ -106,6 +142,7 @@ async function handle(message, sender) {
       return { run: null };
     }
     if (!validTabUrl(sender.tab.url)) throw new Error("Página no autorizada.");
+    await sameSavedPage(run, sender);
     return { run: await write({ ...run, documentId: sender.documentId, phase: "ready" }) };
   }
   const run = await requireOwner(sender, message.id);
@@ -137,7 +174,7 @@ async function handle(message, sender) {
     }
     return { run: await write({ ...run, processed: run.processed + 1, pendingKey: null, pendingKind: null,
       anonymousBefore: 0, lastCompletedKey: message.key,
-      phase: "ready", notBefore: Date.now() + run.delayMs, message: `Elemento eliminado y comprobado. ${run.processed + 1} de ${run.planned}.` }) };
+      phase: "ready", notBefore: Date.now() + run.delayMs, message: `Elemento ${run.savedCollection ? "quitado de la colección" : "eliminado"} y comprobado. ${run.processed + 1} de ${run.planned}.` }) };
   }
   if (message.type === "phase") {
     const allowed = ["selecting", "confirming", "deleting", "waiting", "cooldown", "verifying", "scrolling"];

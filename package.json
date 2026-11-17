@@ -1,8 +1,8 @@
 {
   "name": "fb-unsave-all",
-  "version": "1.0.7",
+  "version": "1.1.0",
   "private": true,
-  "description": "A local Chrome extension to remove Facebook saved items individually or through Activity Log batches.",
+  "description": "A local Chrome extension to clean Facebook Saved, collection items, or Activity Log batches.",
   "license": "MIT",
   "scripts": {
     "test": "node --test --test-concurrency=1 tests/lifecycle.test.cjs tests/saved.test.cjs tests/popup.test.cjs",

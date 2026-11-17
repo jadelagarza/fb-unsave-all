@@ -2,7 +2,7 @@
 
 Extensión local de Google Chrome para quitar los elementos guardados de tu cuenta de Facebook mediante sus controles visibles.
 
-**Versión 1.0.7.** Permite eliminar uno por uno desde [Guardados](https://www.facebook.com/saved/), con espera configurable, cuenta regresiva y desplazamiento automático. También procesa tarjetas vacías sin título ni enlace propio, verificando que haya una tarjeta vacía menos y que los demás elementos identificables no cambien. Conserva el modo por lotes del Registro de actividad.
+**Versión 1.1.0.** Permite limpiar uno por uno desde [Guardados](https://www.facebook.com/saved/) o desde una colección abierta (`/saved/?list_id=…`), con espera configurable, cuenta regresiva y scroll automático. En una colección usa exclusivamente **Eliminar de la colección**, también para contenido no disponible, y conserva la colección. Mantiene las tarjetas vacías y los lotes del Registro de actividad.
 
 [English guide](docs/README.en.md) · [Desarrollo y pruebas](docs/DEVELOPMENT.md) · [Historial de cambios](CHANGELOG.md)
 
@@ -10,7 +10,7 @@ Extensión local de Google Chrome para quitar los elementos guardados de tu cuen
 
 | Modo del panel | Funcionamiento | Uso |
 | --- | --- | --- |
-| **Guardados: uno por uno** (predeterminado) | Abre los tres puntos de una tarjeta, pulsa Eliminar, verifica que desaparezca y espera antes de continuar. Hace scroll para acceder a los botones y cargar más tarjetas. No recarga entre elementos. | Limpiar desde `/saved/`, incluso cuando el Registro de actividad omite guardados antiguos. |
+| **Guardados y colecciones: uno por uno** (predeterminado) | Abre los tres puntos de una tarjeta, pulsa Eliminar, verifica que desaparezca y espera antes de continuar. Hace scroll para acceder a los botones y cargar más tarjetas. No recarga entre elementos. | Limpiar desde `/saved/`. Dentro de `/saved/?list_id=…` usa sólo Eliminar de la colección y conserva la colección. |
 | **Registro de actividad: lotes** | Marca Todo, lee el contador, pulsa Eliminar y confirma. Espera a que la página vuelva a estar disponible, recarga y comprueba el resultado antes de continuar. | Usar los controles de selección por lotes de Facebook. |
 
 La extensión quita referencias de tus guardados; no elimina las publicaciones originales. No ofrece una función para restaurar guardados eliminados. Las pausas **no garantizan evitar restricciones o verificaciones de Facebook**.
@@ -45,20 +45,34 @@ Mantén la carpeta en el mismo lugar mientras esté instalada. Este proyecto no 
 
 1. Detén cualquier ejecución activa.
 2. Descarga la versión actual o ejecuta `git pull` en tu clon.
-3. En `chrome://extensions`, pulsa **Recargar** en FB Unsave All y comprueba la versión **1.0.7**, también visible en la cabecera del panel.
+3. En `chrome://extensions`, pulsa **Recargar** en FB Unsave All y comprueba la versión **1.1.0**, también visible en la cabecera del panel.
 4. Recarga Facebook una vez. Esta recarga es necesaria para reemplazar el script anterior.
-5. Abre de nuevo el panel y selecciona el modo deseado. El modo predeterminado ahora es **Guardados: uno por uno**.
+5. Abre de nuevo el panel y selecciona el modo deseado. El modo predeterminado ahora es **Guardados y colecciones: uno por uno**.
 
-## Guardados: uno por uno, con scroll automático
+## Guardados y colecciones: uno por uno, con scroll automático
 
 1. Inicia sesión en Facebook por tu cuenta.
-2. Selecciona **Guardados: uno por uno** en el panel.
-3. Pulsa **1. Abrir mis elementos guardados**, o entra en [facebook.com/saved/](https://www.facebook.com/saved/). Abre la vista general de todos los guardados, fuera de una colección. Para recorrer la lista desde el principio, empieza arriba.
+2. Selecciona **Guardados y colecciones: uno por uno** en el panel.
+3. Pulsa **1. Abrir todos mis guardados**, o entra en [facebook.com/saved/](https://www.facebook.com/saved/). Para quitar referencias de Guardados, usa la vista general. Para limpiar una colección, sigue el apartado siguiente. Para recorrer la lista desde el principio, empieza arriba.
 4. Espera a que aparezcan tarjetas. Puedes haber deslizado para cargar varias; también se cargarán más conforme haga falta. Deja cerrados los menús y diálogos de Facebook.
 5. Pulsa **2. Comprobar esta página**. Verás **Comprobando…** inmediatamente y después el resultado o error debajo del botón. Si todo está listo, indicará cuántas tarjetas reconoce; esta cantidad **no es el total de guardados de la cuenta**. Comprobar no elimina elementos.
 6. Para la primera prueba, configura **Máximo de elementos: 1** y **Espera entre elementos: 4**.
 7. Marca la casilla de aceptación y pulsa **3. Iniciar limpieza**. La casilla es obligatoria en ambos modos; no necesitas volver a marcarla para cada elemento de esa ejecución.
 8. Comprueba que se quitó el elemento esperado. Después puedes iniciar otra ejecución con un límite mayor o con **0** para continuar mientras se encuentren tarjetas.
+
+### Limpiar los elementos de una colección
+
+1. En Facebook, abre **Guardado → Mis colecciones → la colección que quieras limpiar**, por ejemplo General. La URL debe tener la forma `/saved/?list_id=…`.
+2. Con esa pestaña activa, abre la extensión y selecciona **Guardados y colecciones: uno por uno**.
+3. Pulsa directamente **Comprobar esta página**. **Abrir todos mis guardados** te llevaría fuera de la colección.
+4. El resultado indicará que usará **Eliminar de la colección**. Empieza con un máximo de **1 elemento** y la espera deseada, marca la aceptación e inicia.
+5. Verifica el resultado y aumenta el máximo, o usa **0** para continuar mientras aparezcan tarjetas.
+
+El script abre los tres puntos de cada elemento y pulsa **exclusivamente Eliminar de la colección** (o **Remove from collection** en inglés). Nunca pulsa Eliminar colección, Invitar, Compartir ni Eliminar genérico en esta vista. **La colección no se borra.** Quitar un elemento de una colección no garantiza quitarlo de la vista general de Guardados ni de otras colecciones.
+
+Las tarjetas con el aviso **Este producto no está disponible ahora** también se procesan, aunque no tengan enlace ni título propio. Varios avisos idénticos se tratan como tarjetas sin identificar: se exige una menos, el mismo conjunto de elementos identificables y 1.5 segundos de estabilidad antes de contar la acción.
+
+Se conservan el límite, la espera con cuenta regresiva, el scroll automático y Detener. La ejecución queda vinculada a la colección inicial: cambiar a otra colección o a todos los guardados la detiene. Para otra colección, abre su página y comienza una ejecución nueva. Si no aparece la opción exacta o no se puede verificar el resultado, se detiene sin probar otra acción.
 
 ### Parámetros
 
@@ -100,7 +114,7 @@ Se permite un máximo de `1` a `500` lotes y una pausa de `3` a `3600` segundos.
 
 Detecta señales de carga y capas que bloquean la página. Cuando la selección se restablece y la interfaz permanece disponible durante 1.5 segundos, solicita una recarga normal con `chrome.tabs.reload`. También admite una recarga de verificación si Facebook conserva las filas antiguas hasta recargar. **Los contadores avanzan sólo después de comprobar progreso en la página nueva**. Si reaparece la misma lista, se detiene sin contar ni repetir ese lote. El último lote también se recarga y verifica.
 
-Si Facebook deja de mostrar elementos anteriores a cierta fecha en el Registro de actividad, utiliza el modo **Guardados: uno por uno**. La extensión no puede obligar a Facebook a entregar datos que la página no proporciona.
+Si Facebook deja de mostrar elementos anteriores a cierta fecha en el Registro de actividad, utiliza el modo **Guardados y colecciones: uno por uno**. La extensión no puede obligar a Facebook a entregar datos que la página no proporciona.
 
 ## Detener y comprobar el resultado
 
@@ -121,8 +135,9 @@ Si Facebook deja de mostrar elementos anteriores a cierta fecha en el Registro d
 | «No se pudo aislar el menú de tres puntos» y hay tarjetas sin Compartir | Actualiza a 1.0.5 y recarga la extensión y Facebook. Reconoce «Más opciones para el elemento guardado» en grupos de dos controles. Si el segundo botón no tiene una acción reconocible, se mantiene la detención. |
 | «Hay tarjetas con identidades ambiguas» | Actualiza a 1.0.6. Algunos productos distintos apuntan a la misma página de inicio de Facebook; ahora se usa el título como respaldo. Si tampoco el título permite distinguirlos, la extensión se detiene y requiere revisión manual. |
 | Una tarjeta negra o sin título detiene la ejecución | Actualiza a 1.0.7 y recarga la extensión y Facebook. Se admite la estructura vacía reconocida con metadatos como Reel y su menú. La eliminación debe reducir el número de tarjetas vacías sin cambiar el resto de elementos identificables. |
+| Una colección pide volver a todos los guardados | Actualiza a 1.1.0, recarga la extensión y Facebook y pulsa Comprobar directamente dentro de la colección. Se admite `/saved/?list_id=…`. |
 | «Áreas independientes» o «tarjetas fuera del área identificada» | Hay más de una lista reconocible y no se puede escoger una con certeza. La ejecución se detiene antes de abrir menús. Revisa la vista y reporta el mensaje exacto. |
-| No se reconoce una tarjeta o su menú | Comprueba que estés en la vista general de Guardados, en español o inglés, con tarjetas cargadas y los tres botones indicados. Guarda el mensaje exacto para reportarlo. |
+| No se reconoce una tarjeta o su menú | Comprueba que estés en Guardados o una colección compatible, en español o inglés, con tarjetas cargadas y su menú Más. Guarda el mensaje exacto para reportarlo. |
 | Eliminar no aparece en el menú | La extensión se detiene. No se pulsa otra opción parecida ni un botón de otra parte de la página. |
 | Se quitó una tarjeta pero no avanza el contador | No pudo verificar su desaparición con la interfaz disponible. Revisa manualmente, detén la ejecución y vuelve a comprobar la página. No se repite la eliminación automáticamente. |
 | Termina aunque sabes que quedan guardados | Facebook puede estar limitando la carga, haber virtualizado tarjetas o mostrar un filtro. Vuelve a la vista general, revisa por tu cuenta y comienza otro recorrido desde arriba si corresponde. |
@@ -136,7 +151,7 @@ Para reportar un problema, incluye versión de la extensión, versión de Chrome
 
 El código está incluido en `extension/`; no descarga código remoto, no añade analítica ni servidores propios y no consulta APIs privadas de Facebook. Los clics activan las solicitudes normales de la página.
 
-El permiso `storage` guarda estado y contadores en memoria de sesión. El acceso a `https://www.facebook.com/*` permite leer y modificar el DOM y reinyectar el script después de las recargas del modo por lotes. No se solicitan permisos de cookies, historial o contraseñas. Las identidades de tarjetas se representan mediante hashes locales; no se almacenan textos ni enlaces de publicaciones en el estado de la extensión.
+El permiso `storage` guarda estado y contadores en memoria de sesión. Para impedir que una ejecución actúe en otra colección, conserva también la URL canónica de la vista autorizada, con `list_id` cuando corresponde, sin parámetros de seguimiento. El acceso a `https://www.facebook.com/*` permite leer y modificar el DOM y reinyectar el script después de las recargas del modo por lotes. No se solicitan permisos de cookies, historial o contraseñas. Las identidades de tarjetas se representan mediante hashes locales; no se almacenan textos ni enlaces de publicaciones en el estado de la extensión.
 
 No se incluyen técnicas para ocultar la automatización ni eludir controles. Consulta las [condiciones de Facebook](https://www.facebook.com/legal/terms). El proyecto no está afiliado a Meta.
 
