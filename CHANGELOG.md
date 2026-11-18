@@ -1,5 +1,13 @@
 # Cambios
 
+## 1.3.0 — 17 de noviembre de 2026
+
+- Permite esperas decimales entre elementos de Guardados y colecciones, desde 0.1 hasta 3600 segundos en pasos de 0.1, incluidos 0.3 y 0.6. Conserva 4 segundos como valor predeterminado.
+- Valida la precisión en el worker y almacena milisegundos enteros. El Registro de actividad mantiene sus pausas enteras de 3 a 3600 segundos.
+- Muestra décimas en la cuenta regresiva de pausas decimales. Recibe cambios de progreso de la sesión para representar fases más breves que el sondeo de estado y evita que una respuesta atrasada sobrescriba el estado nuevo.
+- Conserva la verificación de retirada y su estabilidad antes de comenzar la pausa, así como límites, detención, scroll y avisos sonoros.
+- Añade pruebas de precisión, límites, rechazo antes de los 300 ms, detención, restauración del panel y formulario en Chromium. Actualiza las guías y la documentación técnica.
+
 ## 1.2.0 — 17 de noviembre de 2026
 
 - Añade tres tonos breves al bloquearse una ejecución por un error, en Guardados, colecciones y Registro de actividad, incluso con el panel cerrado.

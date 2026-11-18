@@ -2,7 +2,7 @@
 
 [Español](../README.md) · [Development and verification](DEVELOPMENT.md) · [Changelog](../CHANGELOG.md)
 
-**Version 1.2.0** adds an automatic error sound, including when the popup is closed, and a **Probar sonido de error** button. Saved cleanup, collection membership removal, card verification, configurable delays, scrolling and Activity Log batches remain available.
+**Version 1.3.0** accepts tenths of a second for Saved and collection item delays, starting at **0.1 seconds**, including **0.3** and **0.6**, with a decimal countdown. The default remains 4 seconds. Card verification, automatic scrolling, error sounds and Activity Log batches remain supported.
 
 This removes references from your saved list, not the original posts. The extension cannot restore removed saves. Delays do not guarantee protection from Facebook restrictions. Automated tests use simulated pages. In 1.0.3, real controls and their menu were inspected without removing anything; this does not verify the full real deletion cycle. Test with **one item** on your account before running a larger cleanup.
 
@@ -20,7 +20,7 @@ This removes references from your saved list, not the original posts. The extens
 5. Open **FB Unsave All** from Chrome's extensions menu.
 6. Reload an already-open Facebook tab once to activate the content script.
 
-To update, stop any active run, download the current files or run `git pull`, then click **Reload** on the extension in `chrome://extensions`. Verify version **1.2.0**, also shown in the popup header, and reload Facebook once. Keep the extracted directory in place. No Node.js or npm packages are required for end users. This project has no official Chrome Web Store listing.
+To update, stop any active run, download the current files or run `git pull`, then click **Reload** on the extension in `chrome://extensions`. Verify version **1.3.0**, also shown in the popup header, and reload Facebook once. Keep the extracted directory in place. No Node.js or npm packages are required for end users. This project has no official Chrome Web Store listing.
 
 ## Saved: one item at a time
 
@@ -36,13 +36,15 @@ To update, stop any active run, download the current files or run `git pull`, th
 | Setting | Default | Range | Meaning |
 | --- | --- | --- | --- |
 | Máximo de elementos | `0` | Integer `0`–`100000` | `0` continues until scrolling stops yielding cards. A positive number limits verified removals. |
-| Espera entre elementos (s) | `4` | Integer `1`–`3600` | Minimum delay after verifying a removal and before opening the next item's menu. |
+| Espera entre elementos (s) | `4` | `0.1`–`3600`, in `0.1` steps | Minimum delay after verifying a removal and before opening the next item's menu. |
+
+Enter **0.3** for a 300 ms pause or **0.6** for 600 ms. At most one decimal place is supported. The pause starts **after verified removal**, so the complete interval also includes Facebook's response and the existing stability check: 1 second for identified cards, 1.5 for anonymous cards. A 0.3 s pause does not mean one complete removal every 0.3 s. Activity Log delays remain whole seconds, from 3 to 3600.
 
 For each card, the extension scrolls its controls into view if needed, opens its three-dot button, and selects the exact **Eliminar / Delete** action (or the adapter's explicitly recognized unsave variant) inside the newly opened menu. It does not select Share or Add to collection, or search the whole page for a Delete button.
 
 It verifies that the card disappeared, with no loading or dialog pending, for one stable second before incrementing the counter. It then waits the configured delay. The actual interval between clicks includes Facebook's response and verification time. If verification fails, it stops without retrying or reloading. Unexpected confirmation dialogs require manual review.
 
-During the pause, the popup counts down **4 s → 3 s → 2 s → 1 s** from the actual pause deadline. Reopening the popup shows the remaining time rather than restarting the countdown. This also applies between Activity Log batches and does not change the configured delay.
+During the pause, the popup counts down **4 s → 3 s → 2 s → 1 s** for whole-second settings, or **0.6 s → 0.5 s → 0.4 s…** for fractional settings. Session progress updates arrive immediately and the display uses the actual pause deadline. Reopening the popup shows the remaining time rather than restarting the countdown. This also applies between Activity Log batches and does not change the configured delay.
 
 ### Clean items from a collection
 

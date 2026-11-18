@@ -219,7 +219,7 @@ test('saved protocol validates settings, owner, progress evidence, duplicates an
   bg.setTabUrl("https://www.facebook.com/saved/");
   bg.setPageHandler(async () => ({ ok: true, inspection: { mode: 'saved', pageUrl: 'https://www.facebook.com/saved/', collection: false, ready: true, empty: false } }));
   const settings = { mode: 'saved', acknowledged: true, maxItems: 2, delaySeconds: 4 };
-  for (const invalid of [{ mode: 'other' }, { acknowledged: false }, { delaySeconds: 0 }, { delaySeconds: 1.5 }, { maxItems: -1 }]) {
+  for (const invalid of [{ mode: 'other' }, { acknowledged: false }, { delaySeconds: 0 }, { delaySeconds: 0.05 }, { maxItems: -1 }]) {
     assert.equal((await bg.request('start', { ...settings, ...invalid })).ok, false);
   }
   assert.equal((await bg.request('open', { mode: 'saved' })).ok, true);
@@ -335,4 +335,83 @@ test('verification timeouts identify pending loading and a target that did not d
   await unchanged.clock.until(() => unchanged.bg.run.status === 'blocked');
   assert.match(unchanged.bg.run.message, /Motivo: la tarjeta original sigue presente/);
   assert.equal(unchanged.bg.run.processed, 0);
+});
+
+
+test('decimal pauses of 0.3 and 0.6 seconds are kept precisely after verification', async () => {
+  for (const delaySeconds of [0.3, 0.6]) {
+    const h = await harness({ maxItems: 2, delaySeconds });
+    await h.clock.until(() => h.bg.run.status === 'finished');
+    assert.equal(h.bg.run.delayMs, Math.round(delaySeconds * 1000));
+    assert.equal(h.bg.run.processed, 2);
+    const firstRemoved = h.events.find(e => e.type === 'removed');
+    const secondOpened = h.events.filter(e => e.type === 'open')[1];
+    const interval = secondOpened.at - firstRemoved.at;
+    assert.ok(interval >= 1000 + delaySeconds * 1000);
+    assert.ok(interval < 1000 + delaySeconds * 1000 + 101);
+    assert.equal(h.bg.reloads.length, 0);
+  }
+});
+
+test('saved mode accepts one decimal place within range and Activity Log retains whole-second limits', async () => {
+  for (const delaySeconds of [0.1, 0.3, 0.6, 1.5, 7.3, 3600]) {
+    const bg = backgroundHarness();
+    bg.setTabUrl('https://www.facebook.com/saved/');
+    bg.setPageHandler(async () => ({ ok: true, inspection: { mode: 'saved', collection: false,
+      pageUrl: 'https://www.facebook.com/saved/', ready: true, empty: false } }));
+    const result = await bg.request('start', { mode: 'saved', acknowledged: true, maxItems: 1, delaySeconds });
+    assert.equal(result.ok, true, result.error);
+    assert.equal(bg.run.delayMs, Math.round(delaySeconds * 1000));
+    assert.equal(Number.isInteger(bg.run.delayMs), true);
+  }
+  for (const delaySeconds of [0, -0.3, 0.05, 0.11, 0.333, NaN, Infinity, 3600.1]) {
+    const bg = backgroundHarness();
+    bg.setTabUrl('https://www.facebook.com/saved/');
+    bg.setPageHandler(async () => ({ ok: true, inspection: { mode: 'saved', collection: false,
+      pageUrl: 'https://www.facebook.com/saved/', ready: true, empty: false } }));
+    const result = await bg.request('start', { mode: 'saved', acknowledged: true, maxItems: 1, delaySeconds });
+    assert.equal(result.ok, false);
+    assert.match(result.error, /pasos de 0.1/);
+    assert.equal(bg.run, null);
+  }
+  for (const delaySeconds of [0.3, 0.6, 3.5]) {
+    const bg = backgroundHarness();
+    const result = await bg.request('start', { mode: 'activity', acknowledged: true, maxBatches: 1, delaySeconds });
+    assert.equal(result.ok, false);
+    assert.match(result.error, /segundos enteros/);
+    assert.equal(bg.run, null);
+  }
+});
+
+test('the worker rejects another deletion until all 300 milliseconds of its cooldown have elapsed', async () => {
+  const bg = backgroundHarness();
+  bg.setTabUrl('https://www.facebook.com/saved/');
+  bg.setPageHandler(async () => ({ ok: true, inspection: { mode: 'saved', collection: false,
+    pageUrl: 'https://www.facebook.com/saved/', ready: true, empty: false } }));
+  await bg.request('start', { mode: 'saved', acknowledged: true, maxItems: 2, delaySeconds: 0.3 });
+  const sender = bg.pageSender();
+  const run = (await bg.request('hello', {}, sender)).run;
+  const request = (type, fields = {}) => bg.request(type, { id: run.id, ...fields }, sender);
+  await request('saved-plan', { total: 2 });
+  await request('phase', { phase: 'selecting' });
+  await request('saved-pending', { key: 'a' });
+  await request('phase', { phase: 'waiting' });
+  await request('saved-completed', { key: 'a', evidenceVerified: true });
+  await request('phase', { phase: 'selecting' });
+  assert.equal((await request('saved-pending', { key: 'b' })).ok, false);
+  bg.clock.now += 299;
+  assert.equal((await request('saved-pending', { key: 'b' })).ok, false);
+  bg.clock.now += 1;
+  assert.equal((await request('saved-pending', { key: 'b' })).ok, true);
+});
+
+test('Stop during a fractional pause prevents the next item', async () => {
+  const h = await harness({ delaySeconds: 0.6 });
+  await h.clock.until(() => h.bg.run.phase === 'cooldown');
+  assert.equal((await h.bg.request('stop')).ok, true);
+  let settled = false;
+  h.done.then(() => { settled = true; });
+  await h.clock.until(() => settled);
+  assert.equal(h.bg.run.status, 'stopped');
+  assert.equal(h.events.filter(e => e.type === 'delete').length, 1);
 });

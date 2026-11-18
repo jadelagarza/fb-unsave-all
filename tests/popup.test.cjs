@@ -2,11 +2,14 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { vm, source, Clock, backgroundHarness } = require('./helpers.cjs');
 
-async function popupHarness(inspect, sound = { startedAt: 1, warning: "" }) {
+async function popupHarness(inspect, sound = { startedAt: 1, warning: "" }, initialRun = null) {
   const clock = new Clock();
   const nodes = new Map();
   const messages = [];
   const intervals = [];
+  const intervalDelays = [];
+  let storageChanged;
+  let status = async () => ({ ok: true, run: initialRun });
   for (const match of source('popup.html').matchAll(/id="([^"]+)"/g)) {
     nodes.set(match[1], {
       value: '', textContent: '', disabled: false, hidden: false, checked: false, dataset: {}, attrs: {}, listeners: {},
@@ -17,20 +20,23 @@ async function popupHarness(inspect, sound = { startedAt: 1, warning: "" }) {
   }
   nodes.get('mode').value = 'saved';
   const context = vm.createContext({
+    Date: clock.Date,
     document: { getElementById: (id) => nodes.get(id) },
     setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout,
-    setInterval: (fn) => intervals.push(fn),
-    chrome: { runtime: {
+    setInterval: (fn, delay) => { intervals.push(fn); intervalDelays.push(delay); },
+    chrome: { storage: { onChanged: { addListener: fn => { storageChanged = fn; } } }, runtime: {
       getManifest: () => ({ version: require('../package.json').version }),
       sendMessage: (message) => {
         messages.push(message);
-        return message.type === 'inspect' ? inspect(message, clock) : message.type === 'test-sound' ? Promise.resolve({ ok: true, sound }) : Promise.resolve({ ok: true, run: null });
+        return message.type === 'inspect' ? inspect(message, clock) : message.type === 'test-sound' ? Promise.resolve({ ok: true, sound }) : status();
       }
     } }
   });
   vm.runInContext(source('popup.js'), context);
   await clock.flush();
-  return { clock, messages, intervals, node: (id) => nodes.get(id),
+  return { clock, messages, intervals, intervalDelays,
+    emitRun: (run, area = 'session') => storageChanged({ run: { newValue: run } }, area),
+    setStatus: fn => { status = fn; }, node: (id) => nodes.get(id),
     click: (id) => nodes.get(id).listeners.click() };
 }
 
@@ -142,4 +148,59 @@ test('Test sound is independent of cleaning and shows success or a playback warn
   await failed.click('test-sound');
   assert.match(failed.node('sound-status').textContent, /No se pudo iniciar/);
   assert.equal(failed.messages.filter(message => message.type === 'test-sound').length, 1);
+});
+
+
+function fractionalRun(clock, delayMs) {
+  return { id: 'fractional-run', status: 'running', mode: 'saved', phase: 'cooldown',
+    maxItems: 2, delayMs, notBefore: clock.now + delayMs, processed: 1,
+    message: 'Pausa', batches: 0, savedCollection: true };
+}
+
+test('short cooldowns arrive through session updates and count tenths without additional requests', async () => {
+  const h = await popupHarness(async () => ({ ok: true }));
+  const run = fractionalRun(h.clock, 600);
+  const requests = h.messages.length;
+  h.emitRun(run, 'local');
+  assert.doesNotMatch(h.node('message').textContent, /Esperando/);
+  h.emitRun(run);
+  assert.match(h.node('message').textContent, /Esperando 0.6 s/);
+  assert.equal(h.node('processed').textContent, '1');
+  assert.equal(h.node('status').textContent, 'En ejecución');
+  assert.equal(h.node('start').disabled, true);
+  const render = h.intervals[h.intervalDelays.indexOf(100)];
+  assert.equal(typeof render, 'function');
+  h.clock.now += 300;
+  render();
+  assert.match(h.node('message').textContent, /Esperando 0.3 s/);
+  h.clock.now += 300;
+  render();
+  assert.match(h.node('message').textContent, /Pausa terminada/);
+  assert.equal(h.messages.length, requests);
+  h.emitRun({ ...run, status: 'stopped', message: 'Detenido' });
+  assert.equal(h.node('message').textContent, 'Detenido');
+});
+
+test('opening the popup restores a fractional setting and its existing deadline', async () => {
+  const run = { id: 'restored', status: 'running', mode: 'saved', phase: 'cooldown',
+    maxItems: 2, delayMs: 300, notBefore: 301, processed: 1, batches: 0, message: 'Pausa' };
+  const h = await popupHarness(async () => ({ ok: true }), undefined, run);
+  assert.equal(h.node('item-delay').value, '0.3');
+  assert.match(h.node('message').textContent, /Esperando 0.3 s/);
+  h.clock.now += 100;
+  h.intervals[h.intervalDelays.indexOf(100)]();
+  assert.match(h.node('message').textContent, /Esperando 0.2 s/);
+});
+
+test('a late status read cannot overwrite a newer fractional cooldown event', async () => {
+  const h = await popupHarness(async () => ({ ok: true }));
+  let reply;
+  h.setStatus(() => new Promise(resolve => { reply = resolve; }));
+  h.intervals[0]();
+  await h.clock.flush();
+  h.emitRun(fractionalRun(h.clock, 300));
+  reply({ ok: true, run: null });
+  await h.clock.flush();
+  assert.match(h.node('message').textContent, /Esperando 0.3 s/);
+  assert.equal(h.node('status').textContent, 'En ejecución');
 });

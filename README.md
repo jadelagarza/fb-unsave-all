@@ -2,7 +2,7 @@
 
 Extensión local de Google Chrome para quitar los elementos guardados de tu cuenta de Facebook mediante sus controles visibles.
 
-**Versión 1.2.0.** Añade un aviso sonoro automático cuando una ejecución se bloquea por un error, incluso si cerraste el panel, y al fallar una acción del panel. Incluye **Probar sonido de error**. Conserva la limpieza de Guardados y colecciones, sus comprobaciones por tarjeta, espera configurable, scroll y los lotes del Registro de actividad.
+**Versión 1.3.0.** La espera entre elementos de Guardados y colecciones acepta décimas desde **0.1 segundos**, como **0.3** o **0.6**, con cuenta regresiva decimal. El valor predeterminado sigue siendo 4 segundos. Conserva la comprobación de cada eliminación, el scroll, los avisos sonoros y los lotes del Registro de actividad.
 
 [English guide](docs/README.en.md) · [Desarrollo y pruebas](docs/DEVELOPMENT.md) · [Historial de cambios](CHANGELOG.md)
 
@@ -45,7 +45,7 @@ Mantén la carpeta en el mismo lugar mientras esté instalada. Este proyecto no 
 
 1. Detén cualquier ejecución activa.
 2. Descarga la versión actual o ejecuta `git pull` en tu clon.
-3. En `chrome://extensions`, pulsa **Recargar** en FB Unsave All y comprueba la versión **1.2.0**, también visible en la cabecera del panel.
+3. En `chrome://extensions`, pulsa **Recargar** en FB Unsave All y comprueba la versión **1.3.0**, también visible en la cabecera del panel.
 4. Recarga Facebook una vez. Esta recarga es necesaria para reemplazar el script anterior.
 5. Abre de nuevo el panel y selecciona el modo deseado. El modo predeterminado ahora es **Guardados y colecciones: uno por uno**.
 
@@ -79,7 +79,9 @@ Se conservan el límite, la espera con cuenta regresiva, el scroll automático y
 | Campo | Predeterminado | Valores | Significado |
 | --- | --- | --- | --- |
 | Máximo de elementos | `0` | Entero de `0` a `100000` | `0`: continuar hasta que no se encuentren más tarjetas al desplazar. Un valor positivo limita las eliminaciones verificadas de esa ejecución. |
-| Espera entre elementos (s) | `4` | Entero de `1` a `3600` | Tiempo mínimo después de verificar una eliminación y antes de abrir el siguiente menú. |
+| Espera entre elementos (s) | `4` | De `0.1` a `3600`, en pasos de `0.1` | Tiempo mínimo después de verificar una eliminación y antes de abrir el siguiente menú. |
+
+Puedes escribir **0.3** para una pausa de 300 ms, o **0.6** para 600 ms. Se admite como máximo una cifra decimal. Esta pausa comienza **después de verificar** que se quitó el elemento; se añade al tiempo de respuesta de Facebook y a la verificación estable de 1 segundo (1.5 segundos para tarjetas sin identificar). Por tanto, una pausa de 0.3 s no significa una eliminación completa cada 0.3 s. El modo Registro de actividad mantiene pausas enteras de 3 a 3600 segundos.
 
 Cada ciclo hace lo siguiente:
 
@@ -92,7 +94,7 @@ Cada ciclo hace lo siguiente:
 
 El tiempo real entre clics será mayor que la pausa configurada, porque incluye la respuesta de Facebook y su comprobación. No hay recarga entre elementos: se conserva la lista cargada. Si aparece un diálogo de confirmación diferente o una interfaz desconocida, la extensión se detiene para revisión.
 
-Durante la pausa, el panel muestra el tiempo restante: **4 s → 3 s → 2 s → 1 s**. Se calcula con la hora de fin de la pausa; si cierras y reabres el panel, muestra lo que realmente queda. También funciona entre lotes. El contador no modifica la espera ni indica que ya haya comenzado la siguiente eliminación.
+Durante la pausa, el panel muestra el tiempo restante: **4 s → 3 s → 2 s → 1 s** para una espera entera, o **0.6 s → 0.5 s → 0.4 s…** si configuraste una espera decimal. El panel recibe los cambios de progreso al momento y calcula la cuenta regresiva con la hora de fin de la pausa; si cierras y reabres el panel, muestra lo que realmente queda. También funciona entre lotes. El contador no modifica la espera ni indica que ya haya comenzado la siguiente eliminación.
 
 ### Tarjetas vacías o sin título
 

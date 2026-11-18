@@ -154,8 +154,15 @@ async function handle(message, sender) {
     const delaySeconds = Number(message.delaySeconds);
     if (mode === "activity" && (!Number.isInteger(maxBatches) || maxBatches < 1 || maxBatches > 500)) throw new Error("El límite debe estar entre 1 y 500 lotes.");
     if (mode === "saved" && (!Number.isInteger(maxItems) || maxItems < 0 || maxItems > 100000)) throw new Error("El límite debe ser 0 (todos los cargados) o entre 1 y 100000 elementos.");
-    const minimum = mode === "saved" ? 1 : 3;
-    if (!Number.isInteger(delaySeconds) || delaySeconds < minimum || delaySeconds > 3600) throw new Error(`La pausa debe estar entre ${minimum} y 3600 segundos.`);
+    const minimum = mode === "saved" ? 0.1 : 3;
+    const validPrecision = Number.isFinite(delaySeconds) && (mode === "saved"
+      ? Number(delaySeconds.toFixed(1)) === delaySeconds
+      : Number.isInteger(delaySeconds));
+    if (!validPrecision || delaySeconds < minimum || delaySeconds > 3600) {
+      throw new Error(mode === "saved"
+        ? "La pausa debe estar entre 0.1 y 3600 segundos, en pasos de 0.1."
+        : "La pausa debe estar entre 3 y 3600 segundos enteros.");
+    }
     if (!result.inspection.ready || result.inspection.empty) throw new Error("La lista no está lista o ya está vacía.");
     if (mode === "saved") {
       const [latestTab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -167,7 +174,7 @@ async function handle(message, sender) {
       id: crypto.randomUUID(), tabId: tab.id, documentId: null, status: "running", phase: "starting",
       mode, savedUrl, savedCollection, maxBatches, maxItems, planned: 0, pendingKey: null, pendingKind: null,
       anonymousBefore: 0, anonymousGroups: [], lastCompletedKey: null,
-      delayMs: delaySeconds * 1000, batches: 0, processed: 0, pendingSelected: 0,
+      delayMs: Math.round(delaySeconds * 1000), batches: 0, processed: 0, pendingSelected: 0,
       lastFingerprint: null, awaitingVerification: false, notBefore: 0,
       startedAt: Date.now(), message: "Iniciando…"
     });

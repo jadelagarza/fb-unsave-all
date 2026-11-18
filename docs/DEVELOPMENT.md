@@ -67,7 +67,7 @@ El service worker limita la respuesta del script de página a 8 segundos; esto l
 
 Durante una comprobación se omiten consultas periódicas de estado para que no se acumulen detrás de ella. Las pruebas de Chromium activan el botón real del DOM del panel y comprueban el mensaje de error en una vista de 380 × 600, además de comprobar que esa acción no elimina datos de la fixture.
 
-Durante `cooldown`, el panel calcula los segundos restantes desde `run.notBefore` y `Date.now()`, redondeando hacia arriba y sin mostrar valores negativos. El texto se revisa localmente cada 250 ms y sólo se modifica si cambia; no añade mensajes al service worker ni cambia la pausa. Al reabrir el panel se recupera la misma hora límite. Fuera de una ejecución activa en pausa, se muestra el mensaje de estado normal.
+Durante `cooldown`, el panel calcula los segundos restantes desde `run.notBefore` y `Date.now()`, redondeando hacia arriba y sin mostrar valores negativos. Desde 1.3.0, el texto se revisa localmente cada 100 ms y sólo se modifica si cambia. Los valores decimales de Guardados se muestran en décimas, redondeadas hacia arriba; los valores enteros conservan el contador por segundos. No añade mensajes al service worker ni cambia la pausa. Al reabrir el panel se recupera la misma hora límite. Fuera de una ejecución activa en pausa, se muestra el mensaje de estado normal.
 
 ### Guardados: uno por uno
 
@@ -103,7 +103,7 @@ El ciclo comprueba la autorización por ejecución, pestaña y documento antes d
 
 Tras Eliminar se espera la ausencia de la identidad, una lista reconocible o vacío explícito, sin carga ni menú o diálogo pendiente y con un segundo de estabilidad. Tiempo máximo: 30 segundos. No se usa la desaparición del spinner por sí sola. Si Facebook presenta una confirmación nueva o conserva una tarjeta sin señales verificables, se detiene sin repetir clics ni hacer recargas de rescate.
 
-La pausa de 1 a 3600 segundos (4 predeterminado) comienza después de verificar cada eliminación y se espera antes de abrir otro menú. La última eliminación no requiere una pausa adicional. Un máximo de 0 permite seguir mientras se encuentren tarjetas. Las identidades ya procesadas se conservan sólo en memoria del documento para no repetirlas si vuelven a renderizarse.
+La pausa de 0.1 a 3600 segundos, en pasos de 0.1 desde 1.3.0 (4 predeterminado) comienza después de verificar cada eliminación y se espera antes de abrir otro menú. La última eliminación no requiere una pausa adicional. Un máximo de 0 permite seguir mientras se encuentren tarjetas. Las identidades ya procesadas se conservan sólo en memoria del documento para no repetirlas si vuelven a renderizarse.
 
 Cuando se agotan las tarjetas reconocidas pendientes, se desplaza el ancestro con desplazamiento vertical o el documento, aproximadamente una pantalla. Se esperan hasta 2.5 segundos por intento, ampliados mientras haya carga visible, con límite de 30 segundos de carga y tres intentos sin nuevas tarjetas. Al agotarse esos intentos se informa que no aparecieron más datos; sólo un mensaje explícito se describe como vista vacía. No se afirma haber consultado todo el servidor. La virtualización, los filtros, los cambios de enlaces o un indicador no reconocido pueden limitar el recorrido y requieren revisión real.
 
@@ -183,3 +183,14 @@ El reproductor deduplica hasta 64 tokens y serializa tonos distintos para no sup
 Las pruebas de lógica cubren una alarma por transición, errores del panel, fallo de Start sin doble aviso, finalización y Stop silenciosos, navegación inesperada, vencimiento del contexto, transporte sin respuesta, recuperación, permisos del emisor, deduplicación y serialización. También inspeccionan cabecera PCM, muestras no nulas y silencios entre pulsos del WAV generado.
 
 `tests/sound.browser.test.cjs` carga la extensión en Chromium con HTTP interceptado y páginas sintéticas. Cierra el panel antes de provocar un error, comprueba que el reproductor offscreen confirme el inicio, verifica que reabrir el panel no cambie el incidente y recrea un documento cerrado antes de usar el botón de prueba. Se verifica el inicio del motor multimedia, no el volumen de una bocina real ni eliminaciones en una cuenta real. Al validar manualmente, actualiza los archivos completos, recarga la extensión y Facebook, y usa Probar sonido con tu salida de audio habitual.
+
+
+## Pausas decimales desde 1.3.0
+
+El campo item-delay declara min=0.1 y step=0.1. El worker valida que el valor sea finito, esté dentro de 0.1–3600 y tenga como máximo una cifra decimal. Se compara el número con su representación a una cifra decimal, evitando rechazar valores válidos por multiplicaciones intermedias en coma flotante. `delayMs` se guarda como milisegundos enteros redondeados: 0.3 s = 300 ms y 0.6 s = 600 ms. Registro de actividad conserva la validación de segundos enteros entre 3 y 3600.
+
+El ciclo existente espera hasta notBefore y el worker sigue rechazando saved-pending antes de esa hora. No se modifica la prueba de retirada, su estabilidad ni el inicio de la pausa después de la verificación. La menor pausa sólo reduce el tiempo adicional antes del siguiente menú; no autoriza acciones simultáneas ni recargas.
+
+El panel usa storage.onChanged para recibir el estado run de la sesión sin esperar el sondeo de un segundo, que podría omitir una fase cooldown de 300 ms. `renderRun` aplica los cambios de progreso y la cuenta regresiva se revisa cada 100 ms. Un contador local de revisiones impide que una respuesta tardía de status sobrescriba un evento de sesión más reciente. No se añaden peticiones de Facebook ni sondeos más frecuentes del worker. Al reabrir se recuperan el valor decimal y la misma hora límite.
+
+Las pruebas de lógica cubren 0.3 y 0.6, el rango y precisión válidos, NaN/infinito, pausas inválidas, rechazo de una segunda eliminación a los 299 ms y aceptación a los 300 ms, detención durante una pausa fraccionaria y la conservación de los límites de lotes. Las pruebas del panel cubren eventos breves, cuenta regresiva en décimas, reabrir y respuestas tardías. Las pruebas de Chromium envían el formulario real con ambas pausas en Guardados y una colección, incluyendo una tarjeta no disponible, comprobando el máximo, la espera y los mensajes decimales en páginas simuladas.

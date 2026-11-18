@@ -6,6 +6,7 @@ let refreshing = false;
 let currentRun = null;
 let inspectedCollection = false;
 let soundWarningShown = false;
+let runRevision = 0;
 function renderScope(collection) {
   $("ack-text").textContent = collection
     ? "Entiendo que se quitarán los elementos uno por uno de la colección abierta. La colección se conserva; esto no garantiza quitarlos de todos mis guardados."
@@ -44,9 +45,12 @@ function renderMessage() {
   const run = currentRun;
   let message = run?.message || "La extensión no actúa hasta que pulses Iniciar.";
   if (run?.status === "running" && run.phase === "cooldown" && Number.isFinite(run.notBefore) && run.notBefore > 0) {
-    const seconds = Math.max(0, Math.ceil((run.notBefore - Date.now()) / 1000));
+    const remaining = Math.max(0, run.notBefore - Date.now());
+    const fractional = run.mode === "saved" && run.delayMs % 1000 !== 0;
+    const seconds = fractional ? Math.ceil(remaining / 100) / 10 : Math.ceil(remaining / 1000);
+    const display = fractional ? seconds.toFixed(1) : String(seconds);
     const next = run.mode === "saved" ? "elemento" : "lote";
-    message = seconds > 0 ? `Esperando ${seconds} s para continuar con el siguiente ${next}…` :
+    message = seconds > 0 ? `Esperando ${display} s para continuar con el siguiente ${next}…` :
       "Pausa terminada. Esperando el siguiente paso…";
   }
   if ($("message").textContent !== message) $("message").textContent = message;
@@ -68,18 +72,7 @@ async function action(fn) {
   try { await fn(); await refresh(); }
   catch (error) { showError(error, true); }
 }
-async function refresh() {
-  if (inspecting || refreshing) return;
-  refreshing = true;
-  try {
-  const { run, sound } = await request("status");
-  if (sound?.warning) {
-    $("sound-status").textContent = sound.warning;
-    soundWarningShown = true;
-  } else if (soundWarningShown) {
-    $("sound-status").textContent = "Aviso sonoro automático al ocurrir un error, incluso con el panel cerrado.";
-    soundWarningShown = false;
-  }
+function renderRun(run) {
   currentRun = run;
   const labels = { running: "En ejecución", stopped: "Detenido", blocked: "Requiere revisión", finished: "Finalizado" };
   const running = run?.status === "running";
@@ -100,6 +93,21 @@ async function refresh() {
   $("batch-metric").hidden = saved;
   $("counter-hint").textContent = saved ? (run?.savedCollection ? "*Se contabilizan al comprobar que la tarjeta desapareció de esta colección. La colección se conserva." : "*Se contabilizan cuando se comprueba que la tarjeta desapareció. Comprueba también el resultado en Guardados.") :
     "*Se contabilizan después de verificar la página recargada. Comprueba también el resultado en Guardados.";
+}
+async function refresh() {
+  if (inspecting || refreshing) return;
+  refreshing = true;
+  const revision = runRevision;
+  try {
+    const { run, sound } = await request("status");
+    if (sound?.warning) {
+      $("sound-status").textContent = sound.warning;
+      soundWarningShown = true;
+    } else if (soundWarningShown) {
+      $("sound-status").textContent = "Aviso sonoro automático al ocurrir un error, incluso con el panel cerrado.";
+      soundWarningShown = false;
+    }
+    if (revision === runRevision) renderRun(run);
   } finally { refreshing = false; }
 }
 $("mode").addEventListener("change", () => { renderMode(); void action(refresh); });
@@ -148,9 +156,15 @@ $("test-sound").addEventListener("click", async () => {
   } finally { $("test-sound").disabled = false; }
 });
 $("stop").addEventListener("click", () => action(() => request("stop")));
+// Session updates make pauses shorter than the status poll visible immediately.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "session" || !Object.hasOwn(changes, "run")) return;
+  runRevision++;
+  renderRun(changes.run.newValue || null);
+});
 renderMode();
 $("version").textContent = `v${chrome.runtime.getManifest().version}`;
 void action(refresh);
 setInterval(() => { void refresh().catch((error) => { showError(error); }); }, 1000);
 // Render from the existing deadline locally; no extra messages or Facebook actions.
-setInterval(renderMessage, 250);
+setInterval(renderMessage, 100);

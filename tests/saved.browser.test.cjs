@@ -52,6 +52,39 @@ async function setup(t, fixtureOptions = {}, url = 'https://www.facebook.com/sav
 describe('Saved page extension fixtures', { concurrency: 3 }, () => {
   const collectionUrl = 'https://www.facebook.com/saved/?list_id=12345&referrer=SAVE_DASHBOARD_NAVIGATION_PANEL';
 
+  for (const delaySeconds of [0.3, 0.6]) {
+    test(`the popup form accepts ${delaySeconds}s and preserves verification, limits and a decimal countdown`, { timeout: 18000 }, async (t) => {
+      const collection = delaySeconds === 0.6;
+      const h = await setup(t, collection ? { collection: true, unavailableIds: [2, 3] } : {},
+        collection ? collectionUrl : 'https://www.facebook.com/saved/');
+      assert.equal(await h.controller.locator('#item-delay').getAttribute('min'), '0.1');
+      assert.equal(await h.controller.locator('#item-delay').getAttribute('step'), '0.1');
+      await h.controller.locator('#item-delay').fill('0.05');
+      assert.equal(await h.controller.locator('#item-delay').evaluate(el => el.checkValidity()), false);
+      await h.controller.locator('#item-delay').fill(String(delaySeconds));
+      await h.controller.locator('#items').fill('2');
+      await h.controller.locator('#ack').check();
+      assert.equal(await h.controller.locator('#form').evaluate(el => el.checkValidity()), true);
+      await h.controller.evaluate(() => {
+        window.decimalMessages = [];
+        new MutationObserver(() => window.decimalMessages.push(document.getElementById('message').textContent))
+          .observe(document.getElementById('message'), { childList: true, characterData: true, subtree: true });
+      });
+      await h.page.bringToFront();
+      await h.controller.evaluate(() => document.getElementById('form').requestSubmit());
+      const run = await h.untilStatus('finished', 14000);
+      assert.equal(run.delayMs, Math.round(delaySeconds * 1000));
+      assert.equal(run.processed, 2);
+      const events = await h.events();
+      assert.deepEqual(events.filter(e => e.type === 'delete').map(e => e.id), [1, 2]);
+      const interval = events.filter(e => e.type === 'open')[1].at - events.find(e => e.type === 'removed').at;
+      assert.ok(interval >= 990 + delaySeconds * 1000);
+      assert.equal(events.filter(e => e.type === 'wrong-action').length, 0);
+      const messages = await h.controller.evaluate(() => window.decimalMessages);
+      assert.ok(messages.some(text => /Esperando 0\.[1-6] s/.test(text)), JSON.stringify(messages));
+    });
+  }
+
   test('anonymous verification tolerates new cards outside an identified group after full feed replacement', { timeout: 25000 }, async (t) => {
     const h = await setup(t, { collection: true, initial: 5, unavailableIds: [2, 3], appendOnDelete: true, nestedMain: true, footerLoading: true }, collectionUrl);
     assert.equal((await h.start({ maxItems: 3 })).ok, true);
