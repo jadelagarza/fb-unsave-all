@@ -2,7 +2,7 @@
 
 Extensión local de Google Chrome para quitar los elementos guardados de tu cuenta de Facebook mediante sus controles visibles.
 
-**Versión 1.3.0.** La espera entre elementos de Guardados y colecciones acepta décimas desde **0.1 segundos**, como **0.3** o **0.6**, con cuenta regresiva decimal. El valor predeterminado sigue siendo 4 segundos. Conserva la comprobación de cada eliminación, el scroll, los avisos sonoros y los lotes del Registro de actividad.
+**Versión 1.3.1.** Los enlaces o títulos repetidos ya no bloquean la limpieza: cada tarjeta se procesa desde sus propios tres puntos, también dentro de colecciones. Conserva la comprobación de cada eliminación, el scroll, los avisos sonoros y los lotes del Registro de actividad. La espera acepta décimas desde **0.1 segundos**, como **0.3** o **0.6**, con cuenta regresiva; el valor predeterminado sigue siendo 4 segundos.
 
 [English guide](docs/README.en.md) · [Desarrollo y pruebas](docs/DEVELOPMENT.md) · [Historial de cambios](CHANGELOG.md)
 
@@ -45,7 +45,7 @@ Mantén la carpeta en el mismo lugar mientras esté instalada. Este proyecto no 
 
 1. Detén cualquier ejecución activa.
 2. Descarga la versión actual o ejecuta `git pull` en tu clon.
-3. En `chrome://extensions`, pulsa **Recargar** en FB Unsave All y comprueba la versión **1.3.0**, también visible en la cabecera del panel.
+3. En `chrome://extensions`, pulsa **Recargar** en FB Unsave All y comprueba la versión **1.3.1**, también visible en la cabecera del panel.
 4. Recarga Facebook una vez. Esta recarga es necesaria para reemplazar el script anterior.
 5. Abre de nuevo el panel y selecciona el modo deseado. El modo predeterminado ahora es **Guardados y colecciones: uno por uno**.
 
@@ -96,13 +96,15 @@ El tiempo real entre clics será mayor que la pausa configurada, porque incluye 
 
 Durante la pausa, el panel muestra el tiempo restante: **4 s → 3 s → 2 s → 1 s** para una espera entera, o **0.6 s → 0.5 s → 0.4 s…** si configuraste una espera decimal. El panel recibe los cambios de progreso al momento y calcula la cuenta regresiva con la hora de fin de la pausa; si cierras y reabres el panel, muestra lo que realmente queda. También funciona entre lotes. El contador no modifica la espera ni indica que ya haya comenzado la siguiente eliminación.
 
-### Tarjetas vacías o sin título
+### Tarjetas repetidas, vacías o sin título
+
+Desde 1.3.1, que dos tarjetas tengan el mismo enlace o título **no impide comprobar ni iniciar la limpieza**. Se abre el menú propio de cada una y se procesa cada aparición, incluida la última copia que quede después de reconstruirse la lista. No se omiten sólo por compartir datos con una tarjeta anterior. No necesitas activar ninguna opción adicional.
 
 Desde 1.0.7, una tarjeta que sólo muestra metadatos como **Reel**, junto con Agregar a colección y un menú Más reconocible, puede procesarse aunque no tenga título ni enlace propio. No necesitas activar una opción adicional.
 
 El script abre el menú de esa tarjeta y pulsa Eliminar una sola vez. Desde 1.1.1 captura sus vecinas inmediatas y el grupo de tarjetas sin identificar entre referencias identificables. Comprueba que la tarjeta original ya no esté y que haya **exactamente una tarjeta sin identificar menos dentro de uno de esos grupos**, sin que aparezca información identificable dentro de él. Permite nuevos elementos fuera del grupo. Si no conserva esos límites, exige una tarjeta menos en toda la lista con el mismo conjunto de elementos identificables. En ambos casos exige 1.5 segundos de estabilidad, sin carga ni diálogos pendientes, antes de aumentar el contador y continuar. Admite varias tarjetas vacías consecutivas y respeta el máximo y la pausa configurados.
 
-Si la tarjeta sigue presente, empieza a mostrar información dentro del grupo, se pierden las referencias y tampoco sirve la comprobación global, o no se confirma la reducción, se detiene para revisión e informa el motivo. No repite automáticamente esa eliminación. Las referencias DOM sin identidad sólo sirven mientras sus controles se conserven; si Facebook reconstruye todo sin dejar evidencia suficiente, se detiene. Las tarjetas con datos presentes pero idénticos que no permiten distinguirlas mantienen su comprobación de ambigüedad.
+La misma comprobación por grupo o cantidad se utiliza para tarjetas con enlaces o títulos repetidos. Si la tarjeta sigue presente, empieza a mostrar información dentro del grupo, se pierden las referencias y tampoco sirve la comprobación global, o no se confirma la reducción, se detiene para revisión e informa el motivo. No repite automáticamente esa eliminación. Las referencias DOM sin identidad sólo sirven mientras sus controles se conserven; si Facebook reconstruye todo sin dejar evidencia suficiente, se detiene. La repetición del enlace o título por sí sola no genera un error.
 
 ## Registro de actividad: lotes
 
@@ -145,7 +147,7 @@ Si Chrome no logra iniciar el reproductor, el panel muestra un aviso en la zona 
 | «Se esperaba un único área principal… se encontraron 2» | Actualiza a 1.0.3 y recarga la extensión y Facebook. Se identifica el área que contiene las tarjetas, con sus controles y enlaces, aunque haya otra área principal o contenedores anidados. |
 | «No se pudo identificar el área» aunque las tarjetas están cargadas | Actualiza a 1.0.3. Los nombres accesibles reales pueden incluir el título después de «Agregar a la colección» o «Más»; antes se comparaba el nombre completo con un texto corto y se descartaban esas tarjetas. |
 | «No se pudo aislar el menú de tres puntos» y hay tarjetas sin Compartir | Actualiza a 1.0.5 y recarga la extensión y Facebook. Reconoce «Más opciones para el elemento guardado» en grupos de dos controles. Si el segundo botón no tiene una acción reconocible, se mantiene la detención. |
-| «Hay tarjetas con identidades ambiguas» | Actualiza a 1.0.6. Algunos productos distintos apuntan a la misma página de inicio de Facebook; ahora se usa el título como respaldo. Si tampoco el título permite distinguirlos, la extensión se detiene y requiere revisión manual. |
+| «Hay tarjetas con identidades ambiguas» | Es una comprobación de versiones anteriores de la extensión. Actualiza a **1.3.1**, recarga la extensión y Facebook. Los enlaces o títulos repetidos ya no bloquean la lista: cada tarjeta usa sus propios tres puntos. |
 | Una tarjeta negra o sin título detiene la ejecución | Actualiza a 1.0.7 y recarga la extensión y Facebook. Se admite la estructura vacía reconocida con metadatos como Reel y su menú. La eliminación debe reducir el número de tarjetas vacías sin cambiar el resto de elementos identificables. |
 | Una colección pide volver a todos los guardados | Actualiza a 1.1.0, recarga la extensión y Facebook y pulsa Comprobar directamente dentro de la colección. Se admite `/saved/?list_id=…`. |
 | «Áreas independientes» o «tarjetas fuera del área identificada» | Hay más de una lista reconocible y no se puede escoger una con certeza. La ejecución se detiene antes de abrir menús. Revisa la vista y reporta el mensaje exacto. |

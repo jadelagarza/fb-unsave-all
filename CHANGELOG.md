@@ -1,5 +1,13 @@
 # Cambios
 
+## 1.3.1 — 18 de noviembre de 2026
+
+- Elimina el bloqueo «Hay tarjetas con identidades ambiguas» en Guardados y colecciones. Los enlaces o títulos repetidos no impiden comprobar la página ni iniciar la limpieza.
+- Procesa cada aparición mediante su propio botón de tres puntos y la opción de eliminación de su menú. Usa la verificación existente por grupo o cantidad, en lugar de exigir una clave única para cada tarjeta.
+- Conserva esa clasificación cuando sólo queda una copia después de reconstruirse el DOM. Evita omitir tarjetas por compartir datos con una anterior y evita duplicar el total previsto al aparecer repeticiones durante la pausa o el scroll.
+- Mantiene la acción exclusiva Eliminar de la colección, la colección, límites, pausas decimales, cuenta regresiva, scroll, Detener y avisos sonoros. Un clic sin retirada comprobable sigue sin contarse ni repetirse automáticamente.
+- Añade pruebas con títulos y enlaces repetidos, tarjetas no disponibles intercaladas, reconstrucciones del DOM, límites, llegada por scroll y cambios durante la pausa. Actualiza las guías en español e inglés y la documentación técnica.
+
 ## 1.3.0 — 17 de noviembre de 2026
 
 - Permite esperas decimales entre elementos de Guardados y colecciones, desde 0.1 hasta 3600 segundos en pasos de 0.1, incluidos 0.3 y 0.6. Conserva 4 segundos como valor predeterminado.

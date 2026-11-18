@@ -2,7 +2,7 @@
 
 [Español](../README.md) · [Development and verification](DEVELOPMENT.md) · [Changelog](../CHANGELOG.md)
 
-**Version 1.3.0** accepts tenths of a second for Saved and collection item delays, starting at **0.1 seconds**, including **0.3** and **0.6**, with a decimal countdown. The default remains 4 seconds. Card verification, automatic scrolling, error sounds and Activity Log batches remain supported.
+**Version 1.3.1** processes cards with repeated links or titles through each card's own three-dot menu, including inside collections. Repeated content no longer blocks inspection or cleanup. Card verification, automatic scrolling, error sounds and Activity Log batches remain supported. Item delays accept tenths from **0.1 seconds**, including **0.3** and **0.6**, with a decimal countdown; the default remains 4 seconds.
 
 This removes references from your saved list, not the original posts. The extension cannot restore removed saves. Delays do not guarantee protection from Facebook restrictions. Automated tests use simulated pages. In 1.0.3, real controls and their menu were inspected without removing anything; this does not verify the full real deletion cycle. Test with **one item** on your account before running a larger cleanup.
 
@@ -20,7 +20,7 @@ This removes references from your saved list, not the original posts. The extens
 5. Open **FB Unsave All** from Chrome's extensions menu.
 6. Reload an already-open Facebook tab once to activate the content script.
 
-To update, stop any active run, download the current files or run `git pull`, then click **Reload** on the extension in `chrome://extensions`. Verify version **1.3.0**, also shown in the popup header, and reload Facebook once. Keep the extracted directory in place. No Node.js or npm packages are required for end users. This project has no official Chrome Web Store listing.
+To update, stop any active run, download the current files or run `git pull`, then click **Reload** on the extension in `chrome://extensions`. Verify version **1.3.1**, also shown in the popup header, and reload Facebook once. Keep the extracted directory in place. No Node.js or npm packages are required for end users. This project has no official Chrome Web Store listing.
 
 ## Saved: one item at a time
 
@@ -66,7 +66,9 @@ Version 1.0.7 handles the recognized blank-card structure: item-type metadata su
 
 It opens that card's menu and clicks Delete once. Since 1.1.1, verification captures immediate neighbors and the anonymous block between identified boundaries. The original control must no longer represent a current card and one bounded group must contain exactly one fewer anonymous card, with no identified cards inside it. New cards outside that group are allowed. If those boundaries are lost, the strict whole-list proof is still available. Both paths require no pending loading or dialog and 1.5 seconds of stability. Multiple blank cards can be processed sequentially with the same delay and maximum.
 
-If the original card remains, identifiable content appears inside its group, the group does not shrink by one, or references are lost without whole-list evidence, the run stops without retrying. DOM references to anonymous neighbors are valid only while those controls survive; a full ambiguous replacement is not counted. Cards with indistinguishable identifying data remain subject to the ambiguity check.
+Since 1.3.1, cards with repeated links or titles use the same group/count verification. Each occurrence is processed through its own menu, including the final copy after a full rerender. They are not skipped just because an earlier card shared their content, and no additional setting is needed.
+
+If the original card remains, identifiable content appears inside its group, the group does not shrink by one, or references are lost without whole-list evidence, the run stops without retrying. DOM references to anonymous neighbors are valid only while those controls survive; a full ambiguous replacement is not counted. A repeated link or title alone does not trigger an error.
 
 When no recognized pending cards remain, it scrolls to load more. Loading is allowed to finish, with a bounded timeout. If three scroll attempts yield no new cards, the run ends with an explanation. **No page reload occurs between items.** The final message distinguishes an explicitly empty view from Facebook failing to deliver more cards. Neither proves that every server-side save has been checked.
 
@@ -92,7 +94,7 @@ If Activity Log omits older saves, use **Guardados y colecciones: uno por uno**.
 - Closing the popup does not stop a run. Closing the Facebook tab stops it.
 - Keep Chrome open and the Facebook tab visible. Avoid operating its controls, switching profiles, navigating or manually reloading during a run.
 - An unexpected reload blocks continuation. Check the result before starting a new run. State is temporary; restarting Chrome does not resume the run.
-- Unknown cards, ambiguous identities, missing menu actions or unverified removal stop the process. It never selects a similarly named action to force progress.
+- Unknown card structures, missing menu actions or unverified removal stop the process. Repeated links or titles do not. It never selects a similarly named action to force progress.
 - If a run ends while saves remain, check filters, collections, virtualization and Facebook's loading behavior manually. Another traversal from the top may be necessary.
 - Resolve CAPTCHA, identity checks, errors and restrictions yourself. The extension does not bypass them.
 - After changing files, reload both the extension and Facebook.
@@ -100,7 +102,7 @@ If Activity Log omits older saves, use **Guardados y colecciones: uno por uno**.
 - If an older version reports two main areas, update to 1.0.3 and reload both the extension and Facebook. The adapter identifies the area containing recognizable saved cards. Two independent card feeds, or cards outside a nested feed, remain ambiguous and prevent clicks.
 - If cards are loaded but the area is not recognized, update to 1.0.3. Earlier versions rejected accessible labels containing the post title, even though the visible button said Add to collection.
 - If the three-dot menu cannot be isolated on cards without Share, update to 1.0.5. It recognizes the observed **Más opciones para el elemento guardado** label in a two-button group. An unknown second action still stops the run.
-- If distinct products trigger the ambiguous-identity message, update to 1.0.6. Facebook may give them the same homepage link. A title fallback now distinguishes them; identical or missing identifying information still requires manual review.
+- If you see the ambiguous-identity message, update to **1.3.1** and reload both the extension and Facebook. Earlier versions rejected repeated card keys; each occurrence now uses its own three-dot menu and group/count verification.
 - If a blank card stops the run, update to 1.0.7. The recognized untitled structure is processed through its own menu and verified by a one-card count reduction with unchanged identifiable peers.
 
 When reporting an issue, include the extension and Chrome versions, language, mode and exact message. Redact private information. Never provide passwords, cookies, tokens or session files.

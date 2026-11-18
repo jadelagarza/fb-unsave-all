@@ -308,7 +308,7 @@ describe('Saved page extension fixtures', { concurrency: 3 }, () => {
     assert.equal(events.filter((event) => event.type === 'wrong-action').length, 0);
   });
 
-  test('generic links with indistinguishable titles remain blocked before opening menus', { timeout: 10000 }, async (t) => {
+  test('identical fallback titles are removed through each own menu, including the final copy after rerender', { timeout: 20000 }, async (t) => {
     const h = await setup(t, {
       realControls: true,
       genericLinkIds: [1, 2],
@@ -316,13 +316,89 @@ describe('Saved page extension fixtures', { concurrency: 3 }, () => {
       twoButtonIds: [1, 2],
       identicalGenericTitles: true
     });
-    const result = await h.start();
-    assert.equal(result.ok, false);
-    assert.match(result.error, /identidades ambiguas/);
-    assert.equal(
-      (await h.events()).filter((event) => ['open', 'delete'].includes(event.type)).length,
-      0
-    );
+    const inspection = await h.request('inspect');
+    assert.equal(inspection.ok, true, inspection.error);
+    assert.equal(inspection.inspection.ready, true);
+    assert.equal(inspection.inspection.loaded, 3);
+    assert.equal((await h.start({ maxItems: 3, delaySeconds: 0.3 })).ok, true);
+    const run = await h.untilStatus('finished', 15000);
+    assert.equal(run.processed, 3);
+    assert.equal(run.planned, 3);
+    const events = await h.events();
+    assert.deepEqual(events.filter(event => event.type === 'open').map(event => event.id), [1, 2, 3]);
+    assert.deepEqual(events.filter(event => event.type === 'delete').map(event => event.id), [1, 2, 3]);
+    assert.equal(events.filter(event => event.type === 'wrong-action').length, 0);
+    assert.equal(events.filter(event => event.type === 'page-load').length, 1);
+  });
+
+  test('collection cleanup handles repeated specific links mixed with unavailable cards after full rerenders', { timeout: 20000 }, async (t) => {
+    const h = await setup(t, { collection: true, duplicateContentIds: [1, 3], unavailableIds: [2] }, collectionUrl);
+    assert.equal((await h.start({ maxItems: 3, delaySeconds: 0.3 })).ok, true);
+    const run = await h.untilStatus('finished', 15000);
+    assert.equal(run.processed, 3);
+    assert.equal(run.planned, 3);
+    const events = await h.events();
+    assert.deepEqual(events.filter(event => event.type === 'remove-collection').map(event => event.id), [1, 2, 3]);
+    assert.equal(events.filter(event => event.type === 'wrong-action').length, 0);
+    assert.equal(events.filter(event => event.type === 'page-load').length, 1);
+    assert.equal(await h.page.getByRole('button', { name: 'Más opciones para la colección', exact: true }).count(), 1);
+  });
+
+  test('repeated cards honor the maximum without skipping or removing the remaining copy', { timeout: 16000 }, async (t) => {
+    const h = await setup(t, { duplicateContentIds: [1, 2, 3] });
+    assert.equal((await h.start({ maxItems: 2, delaySeconds: 0.3 })).ok, true);
+    const run = await h.untilStatus('finished', 11000);
+    assert.equal(run.processed, 2);
+    assert.equal(run.planned, 2);
+    const events = await h.events();
+    assert.deepEqual(events.filter(event => event.type === 'delete').map(event => event.id), [1, 2]);
+    assert.equal(await h.page.locator('[data-more="3"]').count(), 1);
+  });
+
+  test('repeated links arriving by scroll are all removed once', { timeout: 25000 }, async (t) => {
+    const h = await setup(t, { duplicateContentIds: [4, 5], moreOnScroll: true, nestedScroll: true });
+    assert.equal((await h.start({ maxItems: 5, delaySeconds: 0.3 })).ok, true);
+    const run = await h.untilStatus('finished', 20000);
+    assert.equal(run.processed, 5);
+    assert.equal(run.planned, 5);
+    const events = await h.events();
+    assert.deepEqual(events.filter(event => event.type === 'delete').map(event => event.id), [1, 2, 3, 4, 5]);
+    assert.equal(events.filter(event => event.type === 'wrong-action').length, 0);
+    assert.equal(events.filter(event => event.type === 'page-load').length, 1);
+  });
+
+  test('repeated cards are accepted but a click without removal is neither counted nor retried', { timeout: 40000 }, async (t) => {
+    const h = await setup(t, { duplicateContentIds: [1, 2, 3], noProgress: true });
+    assert.equal((await h.start({ maxItems: 1 })).ok, true);
+    const run = await h.untilStatus('blocked', 35000);
+    assert.equal(run.processed, 0);
+    assert.match(run.message, /No se pudo verificar la eliminación/);
+    const events = await h.events();
+    assert.deepEqual(events.filter(event => event.type === 'delete').map(event => event.id), [1]);
+    assert.equal(events.filter(event => event.type === 'page-load').length, 1);
+  });
+
+  test('a single later copy of an already removed link is processed rather than skipped as completed', { timeout: 22000 }, async (t) => {
+    const h = await setup(t, { duplicateContentIds: [1, 4], moreOnScroll: true, moreIdsOnScroll: [4] });
+    assert.equal((await h.start({ maxItems: 4, delaySeconds: 0.3 })).ok, true);
+    const run = await h.untilStatus('finished', 17000);
+    assert.equal(run.processed, 4);
+    assert.equal(run.planned, 4);
+    assert.deepEqual((await h.events()).filter(event => event.type === 'delete').map(event => event.id), [1, 2, 3, 4]);
+  });
+
+  test('becoming repeated during verification does not make a still-present card look removed', { timeout: 40000 }, async (t) => {
+    const h = await setup(t, { noProgress: true });
+    assert.equal((await h.start({ maxItems: 1 })).ok, true);
+    await h.page.waitForFunction(() => window.events.some(event => event.type === 'removed'));
+    await h.page.evaluate(() => {
+      const card = document.querySelector('article');
+      card.after(card.cloneNode(true));
+    });
+    const run = await h.untilStatus('blocked', 35000);
+    assert.equal(run.processed, 0);
+    assert.match(run.message, /tarjeta original sigue presente/);
+    assert.deepEqual((await h.events()).filter(event => event.type === 'delete').map(event => event.id), [1]);
   });
 
   test('a price update alone cannot confirm removal of a generic-link product', { timeout: 40000 }, async (t) => {

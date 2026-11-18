@@ -12,7 +12,7 @@ module.exports = function fixture(options = {}) {
   const blankIds = new Set(options.blankIds || []);
   const unavailableIds = new Set(options.unavailableIds || []);
   let nextAddedId = 100;
-  let queued=options.moreOnScroll?[4,5]:[];
+  let queued=options.moreOnScroll?(options.moreIdsOnScroll || [4,5]):[];
   let deleted=0;
   let renderCount=0;
   let loading=false;
@@ -55,12 +55,13 @@ module.exports = function fixture(options = {}) {
   function render(){
     renderCount++;
     const html=ids.map(id=>{
+      const contentId = (options.duplicateContentIds || []).includes(id) ? 'shared' : id;
       if (options.collection) {
         const unavailable = unavailableIds.has(id);
         const thumbnail = '<img alt="imagen" width="144" height="144">';
         const content = unavailable
           ? thumbnail + '<div>Este producto no está disponible ahora.</div><div>Es posible que haya cambiado la configuración de privacidad o que haya caducado.</div>'
-          : '<a href="/watch/?ref=saved&v=' + id + '">' + thumbnail + '</a><a href="/watch/?ref=saved&v=' + id + '">Video de Demo ' + id + '</a><span>Reels • Demo</span>';
+          : '<a href="/watch/?ref=saved&v=' + contentId + '">' + thumbnail + '</a><a href="/watch/?ref=saved&v=' + contentId + '">Video de Demo ' + id + '</a><span>Reels • Demo</span>';
         return '<div data-fixture-id="' + id + '" data-card style="padding:20px;margin:10px;background:white;width:650px;min-height:180px">' + content +
           '<div><div role="button" tabindex="0" data-more="' + id + '" aria-label="Más" aria-haspopup="dialog" style="display:inline-block;padding:12px">…</div></div></div>';
       }
@@ -94,7 +95,7 @@ module.exports = function fixture(options = {}) {
         return '<article>' + thumbnail + '<span>Reel</span>' + nested + '</article>';
       }
       const genericLink = (options.genericLinkIds || []).includes(id);
-      const titleHref = genericLink ? 'https://facebook.com/' : '/posts/saved-' + id;
+      const titleHref = genericLink ? 'https://facebook.com/' : '/posts/saved-' + contentId;
       const titleText = genericLink && options.identicalGenericTitles ? 'Saved product' : 'Saved item ' + id;
       const price = options.changingPrice
         ? '<p data-price>Price: ' + (100 + renderCount) + '</p>'

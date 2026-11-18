@@ -4,6 +4,8 @@
   const { normalize, visible, visuallyVisible, name, unique } = globalThis.FBUnsave;
   let verified = null;
   let scrollArea = null;
+  let repeatedContext = null;
+  const repeatedKeys = new Set();
   const controls = 'button,[role="button"]';
   const collectionNames = new Set(["agregar a coleccion", "agregar a la coleccion", "anadir a coleccion", "anadir a la coleccion", "add to collection"]);
   const moreNames = new Set([
@@ -235,13 +237,24 @@
   }
   function cards() {
     const scope = assertPage();
-    const result = cardAnchors(scope).map((anchor) => readEntry(anchor, scope));
-    const identified = result.filter((card) => !card.anonymous);
-    if (new Set(identified.map((card) => card.key)).size !== identified.length) {
-      throw new Error("Hay tarjetas con identidades ambiguas. Revisa la lista antes de eliminar.");
+    const context = pageContext().url;
+    if (context !== repeatedContext) {
+      repeatedKeys.clear();
+      repeatedContext = context;
     }
+    const result = cardAnchors(scope).map((anchor) => readEntry(anchor, scope));
+    const counts = new Map();
+    for (const card of result) {
+      if (!card.anonymous) counts.set(card.key, (counts.get(card.key) || 0) + 1);
+    }
+    for (const [key, count] of counts) if (count > 1) repeatedKeys.add(key);
     if (result.length) scrollArea = findScrollArea(result.at(-1).element.parentElement);
-    return result;
+    // Repeated content still has distinct card controls. Process every occurrence
+    // through its own menu, using count/group evidence instead of a shared key.
+    // Keep this classification when only one copy remains after a DOM rebuild.
+    return result.map((card) => !card.anonymous && repeatedKeys.has(card.key)
+      ? { ...card, repeatedKey: card.key, key: null, anonymous: true }
+      : card);
   }
   function loadingIndicators(scope) {
     return all(scope, '[role="progressbar"],[aria-busy="true"],[data-visualcompletion="loading-state"]');
@@ -318,7 +331,7 @@
     const current = cards();
     const index = current.findIndex((item) => item.anonymous && item.more === card.more);
     if (index < 0) {
-      throw new Error("La tarjeta vacía cambió después de abrir su menú. Revisa la página.");
+      throw new Error("El elemento cambió después de abrir su menú. Revisa la página.");
     }
     let left = index - 1;
     let right = index + 1;
@@ -344,9 +357,12 @@
   }
   function boundaryIndex(current, boundary) {
     if (!boundary) return null;
-    return current.findIndex((card) => boundary.anonymous
-      ? card.anonymous && card.more === boundary.more
-      : !card.anonymous && card.key === boundary.key);
+    const sourceKey = boundary.key || boundary.repeatedKey;
+    const sameControl = current.findIndex((card) => card.more === boundary.more &&
+      (sourceKey ? (card.key || card.repeatedKey) === sourceKey : card.anonymous));
+    if (sameControl >= 0) return sameControl;
+    if (boundary.anonymous) return -1;
+    return current.findIndex((card) => !card.anonymous && card.key === boundary.key);
   }
   function anonymousEvidence(target, current, keys, anonymousAfter) {
     const original = current.find((card) => card.more === target.targetMore);
@@ -386,7 +402,7 @@
     const anonymous = target?.kind === "anonymous";
     const peersUnchanged = anonymous && sameKeys(keys, target.identifiedKeys);
     const proof = anonymous ? anonymousEvidence(target, current, keys, anonymousAfter) : {
-      removed: !current.some((card) => card.key === target), completionKind: "identified",
+      removed: !current.some((card) => (card.key || card.repeatedKey) === target), completionKind: "identified",
       signature: `identified:${target}`, reason: "target-present"
     };
     const explicitEmpty = hasEmptyMessage(scope);
@@ -407,6 +423,11 @@
     if (!scroll) throw new Error("No se pudo reconocer el área desplazable de Guardados.");
     scroll.scrollBy({ top: Math.max(400, scroll.clientHeight * 0.85), behavior: "instant" });
   }
+  function rememberRemoved(key) {
+    // A later occurrence of proven-removed content is another card to process,
+    // even if the two occurrences were never loaded at the same time.
+    repeatedKeys.add(key);
+  }
   globalThis.FBSaved = Object.freeze({ pageContext, assertPage, cards, inspect, loading, moreLoading, openMenus, clickable,
-    menuDelete, captureAnonymous, anonymousTargetReady, deletionState, scrollMore });
+    menuDelete, captureAnonymous, anonymousTargetReady, deletionState, scrollMore, rememberRemoved });
 })();

@@ -15,6 +15,7 @@ async function harness(options = {}) {
   let loading = false;
   let scrolls = 0;
   let securityError = false;
+  let reclassified = false;
   const record = (type, key) => events.push({ type, key, at: clock.now });
   const knownKeys = () => items.filter((key) => !anonymousIds.has(key)).sort();
   const anonymousCount = () => items.filter((key) => anonymousIds.has(key)).length;
@@ -33,8 +34,10 @@ async function harness(options = {}) {
     moreLoading: () => loading,
     openMenus: () => menu ? [{}] : [],
     clickable: () => true,
+    rememberRemoved() {},
     cards: () => items.map((key) => ({
       key: anonymousIds.has(key) ? null : key,
+      ...(reclassified && ['b', 'c'].includes(key) ? { repeatedKey: 'b' } : {}),
       anonymous: anonymousIds.has(key), testId: key, more: moreFor(key)
     })),
     menuDelete() {
@@ -83,6 +86,12 @@ async function harness(options = {}) {
   const context = vm.createContext({ FBSaved: dom, Date: clock.Date, setTimeout: clock.setTimeout });
   vm.runInContext(source('saved-content.js'), context);
   const send = async (type, fields) => {
+    if (options.repeatDuringCooldown && !reclassified && type === 'phase' && fields.phase === 'cooldown') {
+      reclassified = true;
+      anonymousIds.add('b');
+      anonymousIds.add('c');
+      items.push('c');
+    }
     const result = await bg.request(type, fields, sender);
     if (!result.ok) throw new Error(result.error);
     return result;
@@ -112,6 +121,17 @@ test('multiple anonymous cards are counted individually and do not prevent proce
   assert.equal(h.bg.run.processed, 3);
   assert.equal(h.bg.run.planned, 3);
   assert.deepEqual(h.events.filter((event) => event.type === 'delete').map((event) => event.key), ['a', 'b', 'c']);
+  assert.equal(h.bg.reloads.length, 0);
+});
+
+test('a pending card becoming repeated during cooldown stays bound to its own menu and is counted once', async () => {
+  const h = await harness({ repeatDuringCooldown: true, delaySeconds: 0.3 });
+  await h.clock.until(() => h.bg.run.status === 'finished');
+  await h.done;
+  assert.equal(h.bg.run.processed, 3);
+  assert.equal(h.bg.run.planned, 3);
+  assert.deepEqual(h.events.filter(event => event.type === 'open').map(event => event.key), ['a', 'b', 'c']);
+  assert.deepEqual(h.events.filter(event => event.type === 'delete').map(event => event.key), ['a', 'b', 'c']);
   assert.equal(h.bg.reloads.length, 0);
 });
 
