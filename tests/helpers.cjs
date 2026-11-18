@@ -35,6 +35,11 @@ function backgroundHarness(clock = new Clock()) {
   let listener;
   let removed;
   let run = null;
+  let errorSound = null;
+  let audioContext = false;
+  let audioHandler = async () => ({ ok: true, started: true });
+  const audioPlays = [];
+  const audioDocuments = [];
   let tabUrl = "https://www.facebook.com/me/allactivity/?category_key=SAVEDFORLATER";
   let pageHandler = async () => ({ ok: true, inspection: { ready: true, empty: false } });
   const reloads = [];
@@ -43,8 +48,15 @@ function backgroundHarness(clock = new Clock()) {
   const context = vm.createContext({
     console, URL, crypto: { randomUUID }, Date: clock.Date, setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout,
     chrome: {
-      storage: { session: { get: async () => ({ run }), set: async (value) => { run = value.run; } } },
-      runtime: { id: 'fixture-extension', getURL: (suffix) => `chrome-extension://fixture/${suffix}`, onMessage: { addListener: (fn) => { listener = fn; } } },
+      storage: { session: { get: async () => ({ run, errorSound }), set: async (value) => {
+        if (Object.hasOwn(value, 'run')) run = value.run;
+        if (Object.hasOwn(value, 'errorSound')) errorSound = value.errorSound;
+      } } },
+      offscreen: { createDocument: async (options) => { audioDocuments.push(options); audioContext = true; } },
+      runtime: { id: 'fixture-extension', getURL: (suffix) => `chrome-extension://fixture/${suffix}`,
+        getContexts: async () => audioContext ? [{ contextType: 'OFFSCREEN_DOCUMENT' }] : [],
+        sendMessage: async (message) => { audioPlays.push(message); return audioHandler(message); },
+        onMessage: { addListener: (fn) => { listener = fn; } } },
       tabs: {
         query: async () => [{ id: 7, url: tabUrl }],
         sendMessage: async (_tabId, message) => pageHandler(message),
@@ -59,7 +71,9 @@ function backgroundHarness(clock = new Clock()) {
   const request = (type, fields = {}, from = sender) => new Promise((resolve) => {
     listener({ app: 'fb-unsave-all', type, ...fields }, from, resolve);
   });
-  return { request, reloads, navigations, clock,
+  return { request, reloads, navigations, clock, audioPlays, audioDocuments,
+    get errorSound() { return errorSound; }, setAudioHandler(fn) { audioHandler = fn; },
+    expireAudioDocument() { audioContext = false; },
     get run() { return run; }, setTabUrl(url) { tabUrl = url; }, setPageHandler(fn) { pageHandler = fn; },
     removeTab: (id) => removed(id),
     pageSender: (documentId = 'document-1', tabId = 7) => ({ tab: { id: tabId, url: tabUrl }, documentId, frameId: 0,

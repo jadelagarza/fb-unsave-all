@@ -5,6 +5,7 @@ let inspecting = false;
 let refreshing = false;
 let currentRun = null;
 let inspectedCollection = false;
+let soundWarningShown = false;
 function renderScope(collection) {
   $("ack-text").textContent = collection
     ? "Entiendo que se quitarán los elementos uno por uno de la colección abierta. La colección se conserva; esto no garantiza quitarlos de todos mis guardados."
@@ -71,7 +72,14 @@ async function refresh() {
   if (inspecting || refreshing) return;
   refreshing = true;
   try {
-  const { run } = await request("status");
+  const { run, sound } = await request("status");
+  if (sound?.warning) {
+    $("sound-status").textContent = sound.warning;
+    soundWarningShown = true;
+  } else if (soundWarningShown) {
+    $("sound-status").textContent = "Aviso sonoro automático al ocurrir un error, incluso con el panel cerrado.";
+    soundWarningShown = false;
+  }
   currentRun = run;
   const labels = { running: "En ejecución", stopped: "Detenido", blocked: "Requiere revisión", finished: "Finalizado" };
   const running = run?.status === "running";
@@ -126,6 +134,18 @@ $("form").addEventListener("submit", (event) => {
   void action(() => request("start", { acknowledged: $("ack").checked,
     mode: $("mode").value, maxItems: Number($("items").value), maxBatches: Number($("batches").value),
     delaySeconds: Number($($("mode").value === "saved" ? "item-delay" : "delay").value) }));
+});
+$("test-sound").addEventListener("click", async () => {
+  $("test-sound").disabled = true;
+  $("sound-status").textContent = "Probando aviso sonoro…";
+  try {
+    const { sound } = await request("test-sound");
+    $("sound-status").textContent = sound?.warning || (Number.isFinite(sound?.startedAt)
+      ? "Aviso reproducido. Si no lo escuchaste, comprueba el volumen y la salida de audio."
+      : "No se pudo confirmar la reproducción. Recarga la extensión y vuelve a probar.");
+  } catch {
+    $("sound-status").textContent = "No se pudo probar el sonido. Recarga la extensión y vuelve a intentarlo.";
+  } finally { $("test-sound").disabled = false; }
 });
 $("stop").addEventListener("click", () => action(() => request("stop")));
 renderMode();

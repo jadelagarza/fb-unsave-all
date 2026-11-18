@@ -2,7 +2,7 @@
 
 Extensión local de Google Chrome para quitar los elementos guardados de tu cuenta de Facebook mediante sus controles visibles.
 
-**Versión 1.1.1.** Corrige la verificación de tarjetas vacías o no disponibles cuando Facebook carga nuevos elementos durante una eliminación. Usa referencias cercanas para comprobar una reducción dentro del grupo observado, en lugar de exigir siempre que toda la lista permanezca igual. Si falta evidencia, el mensaje indica el motivo concreto. Conserva la limpieza de Guardados, los elementos de colecciones y los lotes del Registro de actividad.
+**Versión 1.2.0.** Añade un aviso sonoro automático cuando una ejecución se bloquea por un error, incluso si cerraste el panel, y al fallar una acción del panel. Incluye **Probar sonido de error**. Conserva la limpieza de Guardados y colecciones, sus comprobaciones por tarjeta, espera configurable, scroll y los lotes del Registro de actividad.
 
 [English guide](docs/README.en.md) · [Desarrollo y pruebas](docs/DEVELOPMENT.md) · [Historial de cambios](CHANGELOG.md)
 
@@ -45,7 +45,7 @@ Mantén la carpeta en el mismo lugar mientras esté instalada. Este proyecto no 
 
 1. Detén cualquier ejecución activa.
 2. Descarga la versión actual o ejecuta `git pull` en tu clon.
-3. En `chrome://extensions`, pulsa **Recargar** en FB Unsave All y comprueba la versión **1.1.1**, también visible en la cabecera del panel.
+3. En `chrome://extensions`, pulsa **Recargar** en FB Unsave All y comprueba la versión **1.2.0**, también visible en la cabecera del panel.
 4. Recarga Facebook una vez. Esta recarga es necesaria para reemplazar el script anterior.
 5. Abre de nuevo el panel y selecciona el modo deseado. El modo predeterminado ahora es **Guardados y colecciones: uno por uno**.
 
@@ -125,6 +125,16 @@ Si Facebook deja de mostrar elementos anteriores a cierta fecha en el Registro d
 - El estado es temporal, en la sesión de Chrome. No hay reanudación automática después de reiniciar el navegador.
 - Al terminar, revisa Guardados por tu cuenta. «No aparecieron más tarjetas» significa que Facebook no entregó más en ese recorrido, no que se hayan verificado todos los guardados del servidor.
 
+## Aviso sonoro de errores
+
+El aviso está activo automáticamente en los tres recorridos: Guardados, elementos de una colección y Registro de actividad. Reproduce tres tonos breves cuando una ejecución pasa a **Requiere revisión**, por ejemplo por falta de evidencia, un menú desconocido, una verificación de Facebook o una navegación inesperada. También suena si falla una acción del panel como Comprobar o Iniciar.
+
+Funciona **con el panel cerrado** porque lo reproduce una página interna de la extensión, independiente de la pestaña de Facebook. Cada error de la ejecución emite un solo aviso; consultar el estado, volver a abrir el panel o recibir de nuevo el mismo fallo no lo repite. Otro error en una nueva ejecución o en otra acción del panel produce su propio aviso. Finalizar normalmente, pulsar Detener o cerrar la pestaña no suena.
+
+Antes de una limpieza larga, pulsa **Probar sonido de error**, debajo del progreso. La prueba no inicia ni modifica una limpieza y puede usarse sin estar en Facebook. Comprueba el volumen, la salida de audio y que Chrome tenga sonido habilitado. El reproductor puede iniciar correctamente aunque el sistema esté silenciado; el programa no puede confirmar que tus bocinas se hayan escuchado.
+
+Si Chrome no logra iniciar el reproductor, el panel muestra un aviso en la zona del sonido. **El error original y la detención se conservan**. Un fallo del sonido no reanuda la limpieza, no retrasa Detener ni genera un ciclo de alarmas. La prueba permite volver a intentarlo. Los fallos repetidos del sondeo de estado no producen avisos cada segundo. Si Chrome está cerrado, suspendido o la propia extensión no puede ejecutarse, el aviso no está garantizado.
+
 ## Resolver problemas
 
 | Síntoma | Qué hacer |
@@ -142,6 +152,7 @@ Si Facebook deja de mostrar elementos anteriores a cierta fecha en el Registro d
 | Se quitó una tarjeta pero no avanza el contador | Actualiza a 1.1.1 y recarga la extensión y Facebook. Se permiten nuevas tarjetas fuera del grupo observado. Si se detiene, lee el Motivo: tarjeta presente, referencias perdidas, información identificable nueva dentro del grupo, cantidad sin reducción, carga pendiente, menú/diálogo abierto, lista no reconocida o resultado inestable. Revisa manualmente antes de iniciar otra ejecución; no se reintenta automáticamente. |
 | Termina aunque sabes que quedan guardados | Facebook puede estar limitando la carga, haber virtualizado tarjetas o mostrar un filtro. Vuelve a la vista general, revisa por tu cuenta y comienza otro recorrido desde arriba si corresponde. |
 | No se pudo comprobar la cantidad seleccionada | Este mensaje corresponde al modo por lotes. Actualiza, recarga la extensión y Facebook, y prueba un lote. |
+| No escuchas un error | Actualiza a 1.2.0, recarga la extensión y pulsa Probar sonido de error. Revisa su resultado, el volumen, la salida de audio y el sonido de Chrome. El estado del error sigue visible aunque el sonido falle. |
 | CAPTCHA, solicitud de contraseña, bloqueo o verificación | Detén el proceso y resuelve la situación manualmente. |
 | Actualizaste los archivos pero ves el comportamiento anterior | Recarga la extensión en `chrome://extensions` y después la pestaña de Facebook. |
 
@@ -151,7 +162,7 @@ Para reportar un problema, incluye versión de la extensión, versión de Chrome
 
 El código está incluido en `extension/`; no descarga código remoto, no añade analítica ni servidores propios y no consulta APIs privadas de Facebook. Los clics activan las solicitudes normales de la página.
 
-El permiso `storage` guarda estado y contadores en memoria de sesión. Para impedir que una ejecución actúe en otra colección, conserva también la URL canónica de la vista autorizada, con `list_id` cuando corresponde, sin parámetros de seguimiento. El acceso a `https://www.facebook.com/*` permite leer y modificar el DOM y reinyectar el script después de las recargas del modo por lotes. No se solicitan permisos de cookies, historial o contraseñas. Las identidades de tarjetas se representan mediante hashes locales; no se almacenan textos ni enlaces de publicaciones en el estado de la extensión.
+El permiso `storage` guarda estado, contadores y el resultado del último intento de aviso sonoro en memoria de sesión. Para impedir que una ejecución actúe en otra colección, conserva también la URL canónica de la vista autorizada, con `list_id` cuando corresponde, sin parámetros de seguimiento. El acceso a `https://www.facebook.com/*` permite leer y modificar el DOM y reinyectar el script después de las recargas del modo por lotes. El permiso `offscreen`, añadido en 1.2.0, permite reproducir el sonido local en una página interna sin abrir ventanas ni depender del panel. Chrome descarta esa página tras un periodo sin audio y se crea otra cuando hace falta. No se solicitan permisos de cookies, historial o contraseñas. Las identidades de tarjetas se representan mediante hashes locales; no se almacenan textos ni enlaces de publicaciones en el estado de la extensión.
 
 No se incluyen técnicas para ocultar la automatización ni eludir controles. Consulta las [condiciones de Facebook](https://www.facebook.com/legal/terms). El proyecto no está afiliado a Meta.
 

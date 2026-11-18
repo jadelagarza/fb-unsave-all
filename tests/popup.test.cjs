@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { vm, source, Clock, backgroundHarness } = require('./helpers.cjs');
 
-async function popupHarness(inspect) {
+async function popupHarness(inspect, sound = { startedAt: 1, warning: "" }) {
   const clock = new Clock();
   const nodes = new Map();
   const messages = [];
@@ -24,7 +24,7 @@ async function popupHarness(inspect) {
       getManifest: () => ({ version: require('../package.json').version }),
       sendMessage: (message) => {
         messages.push(message);
-        return message.type === 'inspect' ? inspect(message, clock) : Promise.resolve({ ok: true, run: null });
+        return message.type === 'inspect' ? inspect(message, clock) : message.type === 'test-sound' ? Promise.resolve({ ok: true, sound }) : Promise.resolve({ ok: true, run: null });
       }
     } }
   });
@@ -128,4 +128,18 @@ test('collection inspection names the item action and states that the collection
   assert.match(h.node('inspection').textContent, /colección se conserva/);
   assert.match(h.node('ack-text').textContent, /uno por uno de la colección/);
   assert.equal(h.messages.some(message => message.type === 'start'), false);
+});
+
+
+test('Test sound is independent of cleaning and shows success or a playback warning', async () => {
+  const h = await popupHarness(async () => ({ ok: true }));
+  await h.click('test-sound');
+  assert.match(h.node('sound-status').textContent, /Aviso reproducido/);
+  assert.equal(h.node('test-sound').disabled, false);
+  assert.equal(h.messages.filter(message => message.type === 'test-sound').length, 1);
+  assert.equal(h.messages.some(message => ['start', 'stop', 'inspect'].includes(message.type)), false);
+  const failed = await popupHarness(async () => ({ ok: true }), { warning: 'No se pudo iniciar el aviso sonoro.' });
+  await failed.click('test-sound');
+  assert.match(failed.node('sound-status').textContent, /No se pudo iniciar/);
+  assert.equal(failed.messages.filter(message => message.type === 'test-sound').length, 1);
 });

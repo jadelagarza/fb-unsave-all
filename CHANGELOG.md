@@ -1,5 +1,14 @@
 # Cambios
 
+## 1.2.0 — 17 de noviembre de 2026
+
+- Añade tres tonos breves al bloquearse una ejecución por un error, en Guardados, colecciones y Registro de actividad, incluso con el panel cerrado.
+- Avisa también ante errores de acciones del panel. Evita repetir el sonido al consultar el estado, reabrir el panel o informar otra vez el mismo fallo, y evita el doble aviso al fallar Start.
+- Añade Probar sonido de error, independiente de la limpieza, y un aviso visible si el reproductor no pudo iniciar. Conserva el mensaje original y la detención aunque falle el audio.
+- Añade un reproductor offscreen y su permiso, con sonido WAV generado localmente y sin archivos o servicios externos. Reutiliza o recrea el contexto, autentica sus mensajes y serializa tonos distintos.
+- Mantiene silenciosos el final normal, Detener y el cierre de la pestaña; el audio no bloquea la cola de control de la limpieza.
+- Añade pruebas de lógica, permisos, reproducción, recuperación y Chromium con el panel cerrado. Actualiza las guías y la documentación técnica.
+
 ## 1.1.1 — 16 de noviembre de 2026
 
 - Corrige la verificación de tarjetas vacías o no disponibles cuando Facebook incorpora nuevos elementos durante la retirada: permite una reducción dentro de un grupo delimitado por vecinas conservadas o referencias identificables, sin exigir que toda la lista permanezca igual.

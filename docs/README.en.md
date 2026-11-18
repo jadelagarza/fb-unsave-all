@@ -2,7 +2,7 @@
 
 [Español](../README.md) · [Development and verification](DEVELOPMENT.md) · [Changelog](../CHANGELOG.md)
 
-**Version 1.1.1** fixes verification when Facebook loads more cards during a removal. Anonymous and unavailable cards can be verified inside a bounded group while unrelated cards arrive outside it. Inconclusive verification now reports the specific reason. Saved cleanup, collection membership removal and Activity Log batches remain available.
+**Version 1.2.0** adds an automatic error sound, including when the popup is closed, and a **Probar sonido de error** button. Saved cleanup, collection membership removal, card verification, configurable delays, scrolling and Activity Log batches remain available.
 
 This removes references from your saved list, not the original posts. The extension cannot restore removed saves. Delays do not guarantee protection from Facebook restrictions. Automated tests use simulated pages. In 1.0.3, real controls and their menu were inspected without removing anything; this does not verify the full real deletion cycle. Test with **one item** on your account before running a larger cleanup.
 
@@ -20,7 +20,7 @@ This removes references from your saved list, not the original posts. The extens
 5. Open **FB Unsave All** from Chrome's extensions menu.
 6. Reload an already-open Facebook tab once to activate the content script.
 
-To update, stop any active run, download the current files or run `git pull`, then click **Reload** on the extension in `chrome://extensions`. Verify version **1.1.1**, also shown in the popup header, and reload Facebook once. Keep the extracted directory in place. No Node.js or npm packages are required for end users. This project has no official Chrome Web Store listing.
+To update, stop any active run, download the current files or run `git pull`, then click **Reload** on the extension in `chrome://extensions`. Verify version **1.2.0**, also shown in the popup header, and reload Facebook once. Keep the extracted directory in place. No Node.js or npm packages are required for end users. This project has no official Chrome Web Store listing.
 
 ## Saved: one item at a time
 
@@ -103,11 +103,21 @@ If Activity Log omits older saves, use **Guardados y colecciones: uno por uno**.
 
 When reporting an issue, include the extension and Chrome versions, language, mode and exact message. Redact private information. Never provide passwords, cookies, tokens or session files.
 
+## Error sound
+
+The sound is enabled automatically. Three short tones play when a run becomes **Requiere revisión**, including verification failures, unknown controls, Facebook checks or unexpected navigation. Failed popup actions such as Check or Start also alert.
+
+Playback runs in an internal extension document and **does not require the popup to remain open**. Polling status, reopening the popup or reporting the same failed run again does not repeat the alert. A new failed run or separate failed popup action has its own alert. Normal completion, manual Stop and closing the execution tab are silent.
+
+Use **Probar sonido de error**, below progress, before a long cleanup. It does not start or change a cleanup and works without a Facebook page. Check system volume, audio output and Chrome's sound settings. Successful media playback cannot prove that speakers were audible when the system is muted.
+
+If Chrome cannot start playback, the sound area shows a warning while preserving the original error and stopped state. Audio failure does not resume cleaning, delay Stop or create recursive alerts. Use the test button to try again. Repeated status-poll failures are silent. Playback cannot be guaranteed while Chrome is closed or suspended or the extension cannot run.
+
 ## Privacy and permissions
 
 All extension code ships in `extension/`. There is no remote code, telemetry, custom server or private Facebook API access. Clicking the page's controls triggers its normal requests.
 
-`storage` keeps temporary session state and counters, including the canonical authorized view URL with its `list_id` when applicable, without tracking parameters, to prevent switching collections during a run. Access to `https://www.facebook.com/*` allows DOM inspection and modification, and reinjection after Activity Log reloads. It requests no cookie, history or password permissions. Card identities are represented by local hashes; post text and links are not stored in extension state.
+`storage` keeps temporary session state, counters and the result of the last sound attempt, including the canonical authorized view URL with its `list_id` when applicable, without tracking parameters, to prevent switching collections during a run. Access to `https://www.facebook.com/*` allows DOM inspection and modification, and reinjection after Activity Log reloads. The new `offscreen` permission lets an internal document play the locally generated sound without opening a window or depending on the popup. Chrome retires the idle audio document; the extension recreates it when needed. It requests no cookie, history or password permissions. Card identities are represented by local hashes; post text and links are not stored in extension state.
 
 There are no techniques to conceal automation or evade restrictions. Read [Facebook's terms](https://www.facebook.com/legal/terms). This project is not affiliated with Meta.
 

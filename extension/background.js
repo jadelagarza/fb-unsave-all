@@ -8,7 +8,56 @@ function modeOf(message) {
 }
 let queue = Promise.resolve();
 const read = async () => (await chrome.storage.session.get(KEY))[KEY] || null;
-const write = async (run) => { await chrome.storage.session.set({ [KEY]: run }); return run; };
+let alertGeneration = 0;
+let creatingAudio = null;
+async function ensureAudioDocument() {
+  if (creatingAudio) return creatingAudio;
+  creatingAudio = (async () => {
+    const contexts = await chrome.runtime.getContexts({
+      contextTypes: ["OFFSCREEN_DOCUMENT"], documentUrls: [chrome.runtime.getURL("offscreen.html")]
+    });
+    if (!contexts.length) {
+      await chrome.offscreen.createDocument({
+        url: "offscreen.html", reasons: ["AUDIO_PLAYBACK"],
+        justification: "Reproducir un aviso breve cuando ocurre un error en la limpieza de guardados."
+      });
+    }
+  })();
+  try { await creatingAudio; }
+  finally { creatingAudio = null; }
+}
+async function playErrorSound(eventId) {
+  let timer;
+  try {
+    const result = await Promise.race([
+      (async () => {
+        await ensureAudioDocument();
+        return chrome.runtime.sendMessage({ app: "fb-unsave-all", target: "error-audio", type: "play", eventId });
+      })(),
+      new Promise((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error("Audio timeout")), 4000);
+      })
+    ]);
+    if (!result?.ok || result.started !== true) throw new Error("Audio unavailable");
+    const sound = { eventId, startedAt: Date.now(), warning: "" };
+    await chrome.storage.session.set({ errorSound: sound });
+    return sound;
+  } catch {
+    const sound = { eventId, startedAt: null,
+      warning: "No se pudo iniciar el aviso sonoro. Pulsa Probar sonido y comprueba el audio de Chrome y del sistema." };
+    await chrome.storage.session.set({ errorSound: sound }).catch(() => {});
+    return sound;
+  } finally { clearTimeout(timer); }
+}
+async function write(run) {
+  const previous = await read();
+  await chrome.storage.session.set({ [KEY]: run });
+  if (run.status === "blocked" && (previous?.id !== run.id || previous.status !== "blocked")) {
+    alertGeneration++;
+    void playErrorSound(`run-${run.id}`);
+  }
+  return run;
+}
 function extensionSender(sender) {
   return sender.id === chrome.runtime.id && sender.url === chrome.runtime.getURL("popup.html");
 }
@@ -64,7 +113,11 @@ async function handle(message, sender) {
   if (!message || message.app !== "fb-unsave-all") return null;
   if (message.type === "status") {
     if (!extensionSender(sender)) throw new Error("Origen no autorizado.");
-    return { run: await read() };
+    return { run: await read(), sound: (await chrome.storage.session.get("errorSound")).errorSound || null };
+  }
+  if (message.type === "test-sound") {
+    if (!extensionSender(sender)) throw new Error("Origen no autorizado.");
+    return { sound: await playErrorSound(`test-${crypto.randomUUID()}`) };
   }
   if (message.type === "open") {
     if (!extensionSender(sender)) throw new Error("Origen no autorizado.");
@@ -235,12 +288,21 @@ async function handle(message, sender) {
   throw new Error("Mensaje desconocido.");
 }
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
-  if (message?.app !== "fb-unsave-all") return false;
+  if (message?.app !== "fb-unsave-all" || message.target === "error-audio") return false;
   // Serialize storage changes so Stop cannot race a stale update from a page.
-  queue = queue.then(() => handle(message, sender)).then(
-    (result) => reply({ ok: true, ...result }),
-    (error) => reply({ ok: false, error: error.message })
-  );
+  queue = queue.then(async () => {
+    const generation = alertGeneration;
+    try { reply({ ok: true, ...await handle(message, sender) }); }
+    catch (error) {
+      const userAction = extensionSender(sender) && ["open", "inspect", "start", "stop"].includes(message.type);
+      // A Start failure may already have blocked its new run. Alert once, not twice.
+      if (userAction && generation === alertGeneration) {
+        alertGeneration++;
+        void playErrorSound(`action-${crypto.randomUUID()}`);
+      }
+      reply({ ok: false, error: error.message });
+    }
+  });
   return true;
 });
 chrome.tabs.onRemoved.addListener((tabId) => {
